@@ -17,16 +17,17 @@
 
 # Multi-stage build for production optimization
 # Build stage - Install dependencies
-FROM python:3.11-slim as builder
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023 as builder
 
-# Set build arguments
-ARG DEBIAN_FRONTEND=noninteractive
-
-# Install system dependencies needed for building
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Install Python 3.11 and build dependencies
+RUN dnf install -y \
+    python3.11 \
+    python3.11-pip \
+    python3.11-devel \
+    gcc \
+    gcc-c++ \
+    make \
+    && dnf clean all
 
 # Create build directory
 WORKDIR /build
@@ -35,20 +36,20 @@ WORKDIR /build
 COPY backend/requirements.txt .
 
 # Install Python dependencies to user directory
-RUN pip install --user --no-cache-dir --upgrade pip && \
-    pip install --user --no-cache-dir -r requirements.txt
+RUN pip3.11 install --user --no-cache-dir --upgrade pip && \
+    pip3.11 install --user --no-cache-dir -r requirements.txt
 
 # Production stage - Minimal runtime image
-FROM python:3.11-slim as production
-
-# Set production arguments
-ARG DEBIAN_FRONTEND=noninteractive
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023 as production
 
 # Install only runtime dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+RUN dnf install -y \
+    python3.11 \
+    python3.11-pip \
+    shadow-utils \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf \
+    && rpm -e --nodeps curl-minimal libcurl-minimal 2>/dev/null || true
 
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
@@ -79,9 +80,9 @@ ENV PATH=/home/appuser/.local/bin:$PATH \
 # Expose application port
 EXPOSE 8000
 
-# Add health check
+# Add health check using Python instead of curl
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python3.11 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" || exit 1
 
 # Run application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
