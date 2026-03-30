@@ -1,1 +1,0 @@
-"""Shared data models used by both versions."""

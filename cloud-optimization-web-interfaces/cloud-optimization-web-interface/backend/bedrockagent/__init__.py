@@ -1,1 +1,0 @@
-"""BedrockAgent version package for traditional Bedrock Agent integration."""

@@ -1,1 +1,0 @@
-"""AgentCore version package for Strands Agent integration via Bedrock AgentCore Runtime."""

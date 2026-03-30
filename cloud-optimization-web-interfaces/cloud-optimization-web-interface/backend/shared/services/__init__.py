@@ -1,1 +1,0 @@
-"""Shared services used by both versions."""

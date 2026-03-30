@@ -1,1 +1,0 @@
-"""Shared utilities used by both versions."""
