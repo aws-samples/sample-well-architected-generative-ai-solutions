@@ -1,0 +1,73 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+*.whl
+pip-wheel-metadata/
+.eggs/
+develop-eggs/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python tools
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.tox/
+.nox/
+
+# === Docker ===
+*.log
+docker-compose.override.yml
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# === OpenClaw ===
+.openclaw/
+
+# === Terraform / IaC (if used) ===
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+
+# === Node (if used) ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Secrets / Env ===
+.env
+.env.*
+!.env.example
+*.pem
+*.key
