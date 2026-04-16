@@ -20,13 +20,6 @@ Parameters:
     AllowedPattern: '^[a-z0-9][a-z0-9.-]*[a-z0-9]$'
     ConstraintDescription: 'Bucket name must be 3-63 characters, lowercase, and follow S3 naming rules'
 
-  SsmPrefix:
-    Type: String
-    Default: coa
-    Description: SSM Parameter Store prefix for this stack (e.g. coa, coa-zx0). Must be unique per deployment.
-    AllowedPattern: '^[a-z0-9][a-z0-9-]*$'
-    ConstraintDescription: 'Lowercase alphanumeric with hyphens only'
-
   SourceKey:
     Type: String
     Default: source.zip
@@ -1103,7 +1096,8 @@ Resources:
                   - ssm:GetParameters
                   - ssm:GetParametersByPath
                 Resource: 
-                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${SsmPrefix}/*'
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/coa/*'
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-optimization-platform/*'
               # MERGED BEDROCK PERMISSIONS FROM PATCH
               - Effect: Allow
                 Action:
@@ -1206,8 +1200,6 @@ Resources:
               Value: !Ref AWS::Region
             - Name: CLOUDFRONT_DOMAIN
               Value: !GetAtt CloudFrontDistribution.DomainName
-            - Name: SSM_PREFIX
-              Value: !Sub '/${SsmPrefix}'
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -1251,7 +1243,7 @@ Resources:
   CognitoUserPoolIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/cognito/user_pool_id'
+      Name: /coa/cognito/user_pool_id
       Type: String
       Value: !Ref SharedUserPool
       Description: Shared Cognito User Pool ID for Cloud Optimization Platform
@@ -1262,7 +1254,7 @@ Resources:
   CognitoWebAppClientIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/cognito/web_app_client_id'
+      Name: /coa/cognito/web_app_client_id
       Type: String
       Value: !Ref WebAppClient
       Description: Web Application Client ID for frontend apps
@@ -1273,7 +1265,7 @@ Resources:
   CognitoAPIClientIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/cognito/api_client_id'
+      Name: /coa/cognito/api_client_id
       Type: String
       Value: !Ref APIClient
       Description: API Client ID for backend services
@@ -1284,7 +1276,7 @@ Resources:
   CognitoMCPServerClientIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/cognito/mcp_server_client_id'
+      Name: /coa/cognito/mcp_server_client_id
       Type: String
       Value: !Ref MCPServerClient
       Description: MCP Server Client ID for AgentCore Runtime
@@ -1295,7 +1287,7 @@ Resources:
   CognitoUserPoolDomainParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/cognito/user_pool_domain'
+      Name: /coa/cognito/user_pool_domain
       Type: String
       Value: !Ref UserPoolDomain
       Description: Cognito User Pool Domain for OAuth flows
@@ -1306,7 +1298,7 @@ Resources:
   CognitoDiscoveryUrlParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/cognito/discovery_url'
+      Name: /coa/cognito/discovery_url
       Type: String
       Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${SharedUserPool}/.well-known/openid-configuration'
       Description: OIDC Discovery URL for JWT validation
@@ -1317,7 +1309,7 @@ Resources:
   CognitoRegionParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/cognito/region'
+      Name: /coa/cognito/region
       Type: String
       Value: !Ref AWS::Region
       Description: AWS Region where Cognito is deployed
@@ -1328,7 +1320,7 @@ Resources:
   CognitoUserPoolArnParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/cognito/user_pool_arn'
+      Name: /coa/cognito/user_pool_arn
       Type: String
       Value: !GetAtt SharedUserPool.Arn
       Description: Cognito User Pool ARN
@@ -1339,7 +1331,7 @@ Resources:
   CognitoIdentityPoolIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/cognito/identity_pool_id'
+      Name: /coa/cognito/identity_pool_id
       Type: String
       Value: !Ref IdentityPool
       Description: Cognito Identity Pool ID for AWS resource access
@@ -1351,7 +1343,7 @@ Resources:
   BedrockRegionParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/bedrock/region'
+      Name: /cloud-optimization-platform/BEDROCK_REGION
       Type: String
       Value: !Ref AWS::Region
       Description: AWS region for Bedrock service
@@ -1362,7 +1354,7 @@ Resources:
   BedrockModelIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/bedrock/model_id'
+      Name: /cloud-optimization-platform/BEDROCK_MODEL_ID
       Type: String
       Value: anthropic.claude-3-haiku-20240307-v1:0
       Description: Bedrock model ID for LLM orchestration
@@ -1373,7 +1365,7 @@ Resources:
   UseEnhancedAgentParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub '/${SsmPrefix}/bedrock/use_enhanced_agent'
+      Name: /cloud-optimization-platform/USE_ENHANCED_AGENT
       Type: String
       Value: 'false'
       Description: Whether to use enhanced Bedrock agent

@@ -22,7 +22,6 @@ Individual connector classes for different types of MCP servers
 
 import asyncio
 import json
-import os
 import time
 from datetime import timedelta
 from typing import Any, Dict, List
@@ -131,7 +130,7 @@ class SecurityMCPConnector(BaseMCPConnector):
             try:
                 # Get connection info from SSM
                 response = ssm_client.get_parameter(
-                    Name=os.environ.get("SSM_PREFIX", "/coa") + "/components/wa_security_mcp/connection_info"
+                    Name="/coa/components/wa_security_mcp/connection_info"
                 )
                 self.connection_info = json.loads(response["Parameter"]["Value"])
 
@@ -555,7 +554,7 @@ class APIMCPConnector(BaseMCPConnector):
             try:
                 # Get connection info from SSM
                 response = ssm_client.get_parameter(
-                    Name=os.environ.get("SSM_PREFIX", "/coa") + "/components/aws_api_mcp/connection_info"
+                    Name="/coa/components/aws_api_mcp/connection_info"
                 )
                 self.connection_info = json.loads(response["Parameter"]["Value"])
 

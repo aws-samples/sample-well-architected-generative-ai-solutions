@@ -43,8 +43,8 @@ def get_secret_value(secret_name: str, region: str = "us-east-1") -> Optional[st
         secrets_client = boto3.client("secretsmanager", region_name=region)
         response = secrets_client.get_secret_value(SecretId=secret_name)
         return response["SecretString"]
-    except Exception:
-        logger.error("Failed to retrieve secret from AWS Secrets Manager", exc_info=True)
+    except Exception as e:
+        logger.error(f"Failed to get secret {secret_name}: {e}")
         return None
 
 

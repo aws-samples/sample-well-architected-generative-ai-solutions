@@ -117,15 +117,10 @@ Examples:
         "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
 
-    parser.add_argument(
-        "--ssm-prefix", default="coa",
-        help="SSM Parameter Store prefix (e.g. coa, coa-zx0)",
-    )
-
     return parser
 
 
-def get_agentcore_runtime_role_arn(region: str, ssm_prefix: str = "coa") -> str:
+def get_agentcore_runtime_role_arn(region: str) -> str:
     """
     Retrieve the AgentCore Runtime Role ARN from Parameter Store.
 
@@ -149,7 +144,7 @@ def get_agentcore_runtime_role_arn(region: str, ssm_prefix: str = "coa") -> str:
         # First try to get the connection info which contains the agent ARN
         try:
             response = ssm_client.get_parameter(
-                Name=f"/{ssm_prefix}/components/wa_security_mcp/connection_info"
+                Name="/coa/components/wa_security_mcp/connection_info"
             )
             connection_info = json.loads(response["Parameter"]["Value"])
             agent_arn = connection_info.get("agent_arn")
@@ -163,7 +158,7 @@ def get_agentcore_runtime_role_arn(region: str, ssm_prefix: str = "coa") -> str:
                 # Try to get the execution role directly from parameter store
                 try:
                     execution_role_response = ssm_client.get_parameter(
-                        Name=f"/{ssm_prefix}/components/wa_security_mcp/execution_role_arn"
+                        Name="/coa/components/wa_security_mcp/execution_role_arn"
                     )
                     execution_role_arn = execution_role_response["Parameter"]["Value"]
                     logger.info(f"Retrieved execution role ARN: {execution_role_arn}")
@@ -194,7 +189,7 @@ def get_agentcore_runtime_role_arn(region: str, ssm_prefix: str = "coa") -> str:
         # Fallback: try to get agent ARN directly
         try:
             response = ssm_client.get_parameter(
-                Name=f"/{ssm_prefix}/components/wa_security_mcp/agent_arn"
+                Name="/coa/components/wa_security_mcp/agent_arn"
             )
             agent_arn = response["Parameter"]["Value"]
             logger.info(f"Retrieved agent ARN directly: {agent_arn}")
@@ -215,8 +210,8 @@ def get_agentcore_runtime_role_arn(region: str, ssm_prefix: str = "coa") -> str:
                 raise ValueError(
                     "AgentCore Runtime configuration not found in Parameter Store. "
                     "Please ensure the WA Security MCP deployment has completed successfully. "
-                    "Expected parameters: /{ssm_prefix}/components/wa_security_mcp/connection_info or "
-                    "/{ssm_prefix}/components/wa_security_mcp/agent_arn"
+                    "Expected parameters: /coa/components/wa_security_mcp/connection_info or "
+                    "/coa/components/wa_security_mcp/agent_arn"
                 )
             else:
                 raise
@@ -232,7 +227,7 @@ def get_agentcore_runtime_role_arn(region: str, ssm_prefix: str = "coa") -> str:
             raise ValueError(
                 "Access denied when retrieving configuration from Parameter Store. "
                 "Please ensure you have ssm:GetParameter permissions for "
-                f"/{ssm_prefix}/components/wa_security_mcp/* parameters."
+                "/coa/components/wa_security_mcp/* parameters."
             )
         else:
             raise ValueError(f"AWS API error: {e}")
@@ -932,7 +927,7 @@ def main():
 
         # Retrieve AgentCore Runtime Role ARN
         try:
-            runtime_role_arn = get_agentcore_runtime_role_arn(region, ssm_prefix=args.ssm_prefix)
+            runtime_role_arn = get_agentcore_runtime_role_arn(region)
         except ValueError as e:
             logger.error("Failed to retrieve AgentCore Runtime Role configuration")
             logger.error(str(e))
@@ -944,7 +939,7 @@ def main():
                 "2. Check that you have access to Parameter Store in the current AWS account"
             )
             logger.error(
-                "3. Verify the deployment created parameters under /{}/components/wa_security_mcp/".format(args.ssm_prefix)
+                "3. Verify the deployment created parameters under /coa/components/wa_security_mcp/"
             )
             raise e
         except Exception as e:
