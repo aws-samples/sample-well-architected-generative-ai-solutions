@@ -1,5 +1,5 @@
 """
-SSM Parameter Store utilities for both BedrockAgent and AgentCore versions.
+SSM Parameter Store utilities for AgentCore runtime.
 """
 
 import os

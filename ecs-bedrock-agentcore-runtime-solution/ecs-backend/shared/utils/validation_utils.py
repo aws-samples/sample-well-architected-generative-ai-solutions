@@ -1,5 +1,5 @@
 """
-Common validation utilities for both BedrockAgent and AgentCore versions.
+Common validation utilities for AgentCore runtime.
 """
 
 import re

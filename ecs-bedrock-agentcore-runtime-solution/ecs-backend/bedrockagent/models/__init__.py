@@ -1,1 +1,0 @@
-"""BedrockAgent-specific data models."""
