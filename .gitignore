@@ -579,3 +579,7 @@ cloud-optimization-web-interfaces/cloud-optimization-web-interface/frontend/conf
 **/.bedrock_agentcore.yaml
 .bedrock_agentcore.yaml
 **/.bedrock_agentcore/**
+
+# Frontend build artifacts
+ecs-bedrock-agent-solution/frontend/node_modules/
+ecs-bedrock-agent-solution/frontend/dist/

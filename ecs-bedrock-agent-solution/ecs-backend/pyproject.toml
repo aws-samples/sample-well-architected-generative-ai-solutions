@@ -1,0 +1,15 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["main", "services", "models"]
+omit = ["tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+precision = 2
