@@ -1,6 +1,6 @@
 """
 Shared Bedrock Model Service for direct model access without agent functionality.
-Used by both BedrockAgent and AgentCore versions for fallback scenarios.
+Used by AgentCore runtime for fallback scenarios.
 """
 
 import json

@@ -11,7 +11,7 @@ from typing import Dict, Optional
 import jwt
 from jwt import PyJWTError
 
-from models.exceptions import AuthenticationError
+from shared.models.exceptions import AuthenticationError
 
 
 logger = logging.getLogger(__name__)

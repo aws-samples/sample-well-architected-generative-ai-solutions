@@ -1,5 +1,5 @@
 """
-CORS middleware configuration for both BedrockAgent and AgentCore versions.
+CORS middleware configuration for AgentCore runtime.
 """
 
 from fastapi import FastAPI
@@ -119,17 +119,17 @@ def get_production_cors_origins() -> List[str]:
     return production_origins
 
 
-def get_cors_config_for_version(version: str) -> dict:
+def get_cors_config_for_version(version: str = "agentcore") -> dict:
     """
-    Get CORS configuration specific to backend version.
+    Get CORS configuration for AgentCore backend.
     
     Args:
-        version: Backend version ("bedrockagent" or "agentcore")
+        version: Backend version (always "agentcore")
         
     Returns:
         Dictionary with CORS configuration
     """
-    base_config = {
+    return {
         "allow_credentials": True,
         "allow_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
         "allow_headers": [
@@ -141,33 +141,21 @@ def get_cors_config_for_version(version: str) -> dict:
             "X-Requested-With",
             "X-Request-ID",
             "X-Session-ID",
-            f"X-Backend-Version"  # Add version header
-        ]
-    }
-    
-    if version == "bedrockagent":
-        base_config["allow_headers"].extend([
-            "X-Agent-ID",
-            "X-Agent-Alias-ID",
-            "X-MCP-Server"
-        ])
-    elif version == "agentcore":
-        base_config["allow_headers"].extend([
+            "X-Backend-Version",
             "X-Strands-Agent",
             "X-AgentCore-Session",
-            "X-Parameter-Prefix"
-        ])
-    
-    return base_config
+            "X-Parameter-Prefix",
+        ],
+    }
 
 
-def configure_cors_for_version(app: FastAPI, version: str) -> None:
+def configure_cors_for_version(app: FastAPI, version: str = "agentcore") -> None:
     """
-    Configure CORS middleware for specific backend version.
+    Configure CORS middleware for AgentCore backend.
     
     Args:
         app: FastAPI application instance
-        version: Backend version ("bedrockagent" or "agentcore")
+        version: Backend version (always "agentcore")
     """
     cors_config = get_cors_config_for_version(version)
     allowed_origins = get_default_cors_origins()
