@@ -1,0 +1,3218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛡️ AWS Cloud Optimization Assistant - Test Interface</title>
+    <!-- Marked.js for markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    <script src="js/template-discovery-service.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #232F3E 0%, #FF9900 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            text-align: center;
+            color: #232F3E;
+            font-size: 2.2em;
+            font-weight: 700;
+        }
+
+        .test-badge {
+            background: #007bff;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            margin-left: 15px;
+            font-weight: 600;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .chat-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            width: 100%;
+            min-height: 70vh;
+            max-height: 85vh;
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .connection-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #28a745;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* Prompt Templates Styles */
+        .prompt-templates-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .section-header h3 {
+            margin: 0;
+            color: #232F3E;
+            font-size: 16px;
+        }
+
+        .templates-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .templates-status .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .templates-status .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ffc107;
+            animation: pulse 2s infinite;
+        }
+
+        .templates-status .status-dot.loaded {
+            background: #28a745;
+            animation: none;
+        }
+
+        .templates-status .status-dot.error {
+            background: #dc3545;
+            animation: none;
+        }
+
+        #templatesStatusText {
+            font-size: 12px;
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .templates-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .templates-placeholder {
+            color: #6c757d;
+            font-style: italic;
+            margin: 0;
+        }
+
+        .template-category {
+            position: relative;
+            display: inline-block;
+        }
+
+        .category-btn {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .category-btn:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+        }
+
+        .category-btn::after {
+            content: "▼";
+            font-size: 10px;
+            transition: transform 0.3s ease;
+        }
+
+        .category-btn.active::after {
+            transform: rotate(180deg);
+        }
+
+        .template-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            max-width: 300px;
+            z-index: 1000;
+            display: none;
+            margin-top: 5px;
+        }
+
+        .template-dropdown.show {
+            display: block;
+        }
+
+        .template-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s ease;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .template-item:last-child {
+            border-bottom: none;
+        }
+
+        .template-item:hover {
+            background: #f8f9fa;
+        }
+
+        .template-item:active {
+            background: #e9ecef;
+        }
+
+        .template-item.clicked {
+            background: #28a745;
+            color: white;
+            transform: scale(0.98);
+            transition: all 0.2s ease;
+        }
+
+        .template-loading {
+            padding: 10px 15px;
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        /* Sub-menu styles */
+        .template-submenu-container {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .template-submenu-header {
+            padding: 10px 15px;
+            cursor: pointer;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            color: #495057;
+            transition: background-color 0.2s ease;
+        }
+
+        .template-submenu-header:hover {
+            background: #e9ecef;
+        }
+
+        .template-submenu-header.open {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .submenu-title {
+            flex: 1;
+        }
+
+        .submenu-arrow {
+            font-size: 10px;
+            transition: transform 0.2s ease;
+            color: #6c757d;
+        }
+
+        .template-submenu-content {
+            background: #fafafa;
+            border-left: 3px solid #007bff;
+        }
+
+        /* Subcategory hover sub-menu styles */
+        .template-subcategory {
+            position: relative;
+            display: block;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s ease;
+        }
+
+        .template-subcategory:hover {
+            background: #f8f9fa;
+        }
+
+        .template-subcategory-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        .subcategory-title {
+            flex: 1;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .subcategory-arrow {
+            font-size: 10px;
+            color: #6c757d;
+            transition: transform 0.2s ease;
+        }
+
+        .template-subcategory:hover .subcategory-arrow {
+            transform: rotate(90deg);
+        }
+
+        .subcategory-submenu {
+            position: absolute;
+            left: 100%;
+            top: 0;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            max-width: 300px;
+            z-index: 1001;
+            display: none;
+            opacity: 0;
+            transform: translateX(-10px);
+            transition: all 0.2s ease;
+        }
+
+        .subcategory-submenu.show {
+            display: block;
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .subcategory-submenu .template-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .subcategory-submenu .template-item:last-child {
+            border-bottom: none;
+        }
+
+        .subcategory-submenu .template-item:hover {
+            background: #f8f9fa;
+        }
+
+        .subcategory-submenu .template-item:active {
+            background: #e9ecef;
+        }
+
+        /* Mobile responsive subcategory styles */
+        @media (max-width: 768px) {
+            .subcategory-submenu {
+                position: fixed;
+                left: 50% !important;
+                top: 50% !important;
+                transform: translate(-50%, -50%) !important;
+                max-width: 90vw;
+                max-height: 60vh;
+                overflow-y: auto;
+                z-index: 1002;
+            }
+
+            .subcategory-submenu.show {
+                transform: translate(-50%, -50%) !important;
+            }
+
+            .template-subcategory-header {
+                font-size: 14px;
+            }
+
+            .subcategory-submenu .template-item {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+        }
+
+        .template-item.main-template {
+            background: #fff3cd;
+            border-left: 3px solid #ffc107;
+            font-weight: 600;
+        }
+
+        .template-item.sub-template {
+            padding-left: 25px;
+            font-size: 12px;
+            color: #6c757d;
+            border-left: 2px solid #dee2e6;
+        }
+
+        .template-item.sub-template:hover {
+            background: #f1f3f4;
+            color: #495057;
+        }
+
+        .template-item.main-template:hover {
+            background: #fff3cd;
+        }
+
+        .test-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+
+        .test-btn {
+            padding: 8px 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .test-btn:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+        }
+
+        #agentSelect {
+            transition: all 0.2s ease;
+        }
+
+        #agentSelect:focus {
+            outline: none;
+            border-color: #FF9900;
+            box-shadow: 0 0 0 2px rgba(255, 153, 0, 0.2);
+        }
+
+        #agentSelect option {
+            padding: 8px;
+        }
+
+        .agent-info {
+            font-size: 12px;
+            color: #6c757d;
+            margin-left: 10px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background: #fafafa;
+            min-height: 300px;
+        }
+
+        .message {
+            margin: 20px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .user .message-avatar {
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%);
+            color: white;
+        }
+
+        .assistant .message-avatar {
+            background: linear-gradient(135deg, #232F3E 0%, #4A5568 100%);
+            color: white;
+        }
+
+        .message-content {
+            flex: 1;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 15px;
+            border: 1px solid #e0e0e0;
+            line-height: 1.6;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Markdown styling for message content */
+        .message-content h1,
+        .message-content h2,
+        .message-content h3,
+        .message-content h4,
+        .message-content h5,
+        .message-content h6 {
+            margin: 16px 0 8px 0;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        .message-content h1 {
+            font-size: 1.5em;
+        }
+
+        .message-content h2 {
+            font-size: 1.3em;
+        }
+
+        .message-content h3 {
+            font-size: 1.1em;
+        }
+
+        .message-content h4 {
+            font-size: 1em;
+        }
+
+        .message-content p {
+            margin: 8px 0;
+        }
+
+        .message-content ul,
+        .message-content ol {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        .message-content li {
+            margin: 4px 0;
+        }
+
+        .message-content blockquote {
+            margin: 16px 0;
+            padding: 8px 16px;
+            border-left: 4px solid #ddd;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .message-content code {
+            background: rgba(0, 0, 0, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .message-content pre {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 12px 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 12px 0;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
+        .message-content pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .message-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 12px 0;
+        }
+
+        .message-content th,
+        .message-content td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .message-content th {
+            background: rgba(0, 0, 0, 0.05);
+            font-weight: 600;
+        }
+
+        .message-content a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .message-content a:hover {
+            text-decoration: underline;
+        }
+
+        .message-content strong {
+            font-weight: 600;
+        }
+
+        .message-content em {
+            font-style: italic;
+        }
+
+        .message-content hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 16px 0;
+        }
+
+        .user .message-content {
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%);
+            color: white;
+            border: none;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: #FF9900;
+            box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.1);
+        }
+
+        .send-btn {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 100px;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 153, 0, 0.3);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .error {
+            color: #dc3545;
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(220, 53, 69, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(220, 53, 69, 0.2);
+        }
+
+        /* JSON collapsible sections */
+        .json-section {
+            margin: 15px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .json-summary {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 15px 20px;
+            cursor: pointer;
+            user-select: none;
+            font-weight: 600;
+            color: #232F3E;
+            border-bottom: 1px solid #e0e0e0;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .json-summary:hover {
+            background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+        }
+
+        .json-summary::after {
+            content: "▼";
+            font-size: 12px;
+            transition: transform 0.3s ease;
+            color: #6c757d;
+        }
+
+        .json-section.collapsed .json-summary::after {
+            transform: rotate(-90deg);
+        }
+
+        .json-content {
+            max-height: 400px;
+            opacity: 1;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .json-content {
+                max-height: 300px;
+            }
+        }
+
+        .json-section.collapsed .json-content {
+            max-height: 0;
+            opacity: 0;
+        }
+
+        .human-summary {
+            padding: 20px;
+            background: white;
+            line-height: 1.6;
+        }
+
+        .human-summary h3 {
+            margin: 0 0 15px 0;
+            color: #232F3E;
+            font-size: 18px;
+        }
+
+        .human-summary ul {
+            margin: 15px 0;
+            padding-left: 20px;
+        }
+
+        .human-summary li {
+            margin: 8px 0;
+        }
+
+        .json-raw {
+            background: #f8f9fa;
+            padding: 20px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            overflow-x: auto;
+            border-top: 1px solid #e0e0e0;
+            color: #495057;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .chat-container {
+                padding: 25px;
+            }
+        }
+
+        @media (max-width: 992px) {
+            .connection-status {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+
+            .connection-status > div {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .test-buttons {
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 10px;
+            }
+
+            .chat-container {
+                padding: 20px;
+                min-height: 75vh;
+                max-height: 90vh;
+                border-radius: 15px;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .test-badge {
+                display: block;
+                margin: 5px auto 0;
+                text-align: center;
+            }
+
+            .connection-status {
+                padding: 12px;
+            }
+
+            .connection-status > div {
+                justify-content: space-between;
+            }
+
+            .connection-status label {
+                font-size: 13px !important;
+            }
+
+            .connection-status select,
+            .connection-status input {
+                font-size: 13px !important;
+                padding: 5px 8px !important;
+                min-width: auto !important;
+                width: auto !important;
+            }
+
+            .test-btn {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            .chat-messages {
+                padding: 12px;
+            }
+
+            .message {
+                margin: 15px 0;
+                gap: 10px;
+            }
+
+            .message-avatar {
+                width: 35px;
+                height: 35px;
+                font-size: 16px;
+            }
+
+            .message-content {
+                padding: 12px 15px;
+            }
+
+            .input-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .message-input {
+                border-radius: 15px;
+                padding: 12px 15px;
+            }
+
+            .send-btn {
+                border-radius: 15px;
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .test-badge {
+                font-size: 0.7em;
+                padding: 3px 10px;
+            }
+
+            .chat-container {
+                padding: 15px;
+                border-radius: 10px;
+            }
+
+            .connection-status {
+                padding: 10px;
+                border-radius: 8px;
+            }
+
+            .connection-status > div {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .connection-status label {
+                font-size: 12px !important;
+                margin-bottom: 3px;
+            }
+
+            .connection-status select,
+            .connection-status input {
+                width: 100% !important;
+                max-width: 200px;
+                margin: 0 auto;
+            }
+
+            .test-buttons {
+                gap: 6px;
+            }
+
+            .test-btn {
+                font-size: 11px;
+                padding: 5px 8px;
+                flex: 1;
+                min-width: 0;
+                text-align: center;
+            }
+
+            .prompt-templates-section {
+                padding: 10px;
+                margin: 15px 0;
+            }
+
+            .section-header {
+                flex-direction: column;
+                gap: 10px;
+                align-items: center;
+                text-align: center;
+            }
+
+            .section-header h3 {
+                text-align: center;
+                margin-bottom: 5px;
+            }
+
+            .templates-status {
+                justify-content: center;
+            }
+
+            .templates-container {
+                justify-content: center;
+            }
+
+            .template-dropdown {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                max-width: 150vw;
+                max-height: 60vh;
+                overflow-y: auto;
+            }
+
+            .template-submenu-header {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+
+            .template-item.sub-template {
+                padding: 8px 20px;
+                font-size: 11px;
+            }
+
+            .template-item.main-template {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+
+            .chat-messages {
+                padding: 10px;
+                border-radius: 8px;
+            }
+
+            .message-content {
+                padding: 10px 12px;
+                border-radius: 12px;
+            }
+
+            .json-section {
+                border-radius: 8px;
+            }
+
+            .json-summary {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+
+            .human-summary {
+                padding: 15px;
+            }
+
+            .json-raw {
+                padding: 15px;
+                font-size: 11px;
+            }
+        }
+
+        /* Landscape orientation on mobile */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .chat-container {
+                min-height: 85vh;
+                max-height: 95vh;
+            }
+
+            .header {
+                padding: 10px 15px;
+            }
+
+            .header h1 {
+                font-size: 1.6em;
+            }
+        }
+    </style>
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1>🛡️ AWS Cloud Optimization Assistant<span class="test-badge">TEST INTERFACE</span></h1>
+        </div>
+
+        <div class="main-content">
+            <div class="chat-container">
+                <div class="connection-status">
+                    <div class="status-indicator">
+                        <div class="status-dot" id="statusDot"></div>
+                        <span id="statusText">Ready to connect...</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="environmentSelect" style="font-size: 14px; font-weight: 600; color: #232F3E;">Environment:</label>
+                        <select id="environmentSelect" onchange="switchEnvironment()" 
+                            style="padding: 6px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 14px; background: white; min-width: 120px;">
+                            <option value="local">Local (localhost:8000)</option>
+                            <option value="loadbalancer">Deployed ALB</option>
+                            <option value="cloudfront">Deployed CloudFront</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="agentSelect" style="font-size: 14px; font-weight: 600; color: #232F3E;">Agent:</label>
+                        <select id="agentSelect" onchange="onAgentChange()" onfocus="loadAvailableAgents()"
+                            style="padding: 6px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 14px; background: white; min-width: 140px;">
+                            <option value="auto">🤖 Auto-Select Agent</option>
+                            <option value="loading" disabled>Loading agents...</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="awsAccountId" style="font-size: 14px; font-weight: 600; color: #232F3E;">AWS Account ID:</label>
+                        <input type="text" id="awsAccountId" placeholder="384612698411" value="384612698411"
+                            style="padding: 6px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 14px; width: 130px; background: white;"
+                            maxlength="12" pattern="[0-9]{12}">
+                    </div>
+                    <div class="test-buttons">
+                        <button class="test-btn" onclick="testConnection()">Test Connection</button>
+                        <!-- Hidden static buttons as requested -->
+                        <!-- <button class="test-btn" onclick="testSecurityServices()">Security Services</button> -->
+                        <!-- <button class="test-btn" onclick="testSecurityFindings()">Security Findings</button> -->
+                        <!-- <button class="test-btn" onclick="testStorageEncryption()">Storage Encryption</button> -->
+                        <!-- <button class="test-btn" onclick="testCostOptimization()">Cost Optimization</button> -->
+                        <button class="test-btn" onclick="clearMessages()">Clear Chat</button>
+                    </div>
+                </div>
+
+                <!-- Prompt Templates Section -->
+                <div class="prompt-templates-section">
+                    <div class="section-header">
+                        <h3>📋 Prompt Templates</h3>
+                        <div class="templates-status" id="templatesStatus">
+                            <span class="status-indicator">
+                                <div class="status-dot" id="templatesStatusDot"></div>
+                                <span id="templatesStatusText">Loading templates...</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div id="promptTemplatesContainer" class="templates-container">
+                        <p class="templates-placeholder">Discovering available prompt templates...</p>
+                    </div>
+                </div>
+
+                <div id="messages" class="chat-messages"></div>
+
+                <div class="input-container">
+                    <input type="text" id="messageInput" class="message-input"
+                        placeholder="Ask about your AWS security posture..." onkeypress="handleKeyPress(event)">
+                    <button onclick="sendMessage()" id="sendBtn" class="send-btn">Send</button>
+                </div>
+
+                <div
+                    style="margin-top: 15px; padding: 10px; background: rgba(255, 153, 0, 0.1); border-radius: 8px; border: 1px solid rgba(255, 153, 0, 0.2); font-size: 14px; text-align: center;">
+                    <a href="https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https://workshop-data-public.s3.ap-northeast-1.amazonaws.com/remote-role-mcpreadonlyall-20250831_134154.yaml&stackName=remote-mcp-readonly-role&capabilities=CAPABILITY_IAM"
+                        target="_blank" style="color: #FF6600; font-weight: 600;">Click here</a> to deploy an
+                    <em>ReadOnly IAM Role</em> in access AWS account to allow Cloud Optimization Assistant to scan your
+                    environment.
+                </div>
+
+                <div id="chatError" class="error" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration for deployed stack
+        const DEPLOYED_CONFIG = {
+            // CloudFront URL (HTTPS)
+            cloudfront: 'https://d1n3sowps9ww6m.cloudfront.net',
+            // Load Balancer URL (HTTP)  
+            loadbalancer: 'http://coa-1021-alb-98043957.us-east-1.elb.amazonaws.com',
+            // Local development
+            local: 'http://localhost:8000'
+        };
+
+        // Auto-detect environment or allow manual selection
+        let API_BASE_URL = DEPLOYED_CONFIG.local; // Default to local
+        let isConnected = false;
+        let availableAgents = {};
+        let selectedAgent = 'auto';
+        let templateDiscoveryService = null;
+
+        // Initialize the app
+        window.addEventListener('load', function () {
+            // Initialize template discovery service
+            templateDiscoveryService = new TemplateDiscoveryService();
+            const welcomeMessage = `# Welcome to the AWS Cloud Optimization Assistant! 🛡️`;
+
+            addMessage('assistant', welcomeMessage);
+            
+            // Auto-detect if we're running on the deployed domain
+            if (window.location.hostname.includes('cloudfront.net') || window.location.hostname.includes('amazonaws.com')) {
+                document.getElementById('environmentSelect').value = 'cloudfront';
+                switchEnvironment();
+            } else {
+                // Initialize local environment properly
+                const statusText = document.getElementById('statusText');
+                statusText.textContent = `Local environment: ${API_BASE_URL}`;
+                
+                // Ensure agent dropdown is properly initialized
+                const agentSelect = document.getElementById('agentSelect');
+                if (agentSelect) {
+                    agentSelect.innerHTML = '<option value="auto">🤖 Auto-Select Agent</option><option value="loading" disabled>Loading agents...</option>';
+                }
+                
+                // Load agents for local environment
+                setTimeout(() => {
+                    loadAvailableAgents();
+                }, 2000);
+            }
+
+            // Automatically load prompt templates on page load
+            setTimeout(() => {
+                loadPromptTemplatesAutomatically();
+            }, 1500);
+        });
+
+        function switchEnvironment() {
+            const select = document.getElementById('environmentSelect');
+            const selectedEnv = select.value;
+            
+            API_BASE_URL = DEPLOYED_CONFIG[selectedEnv];
+            
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = `Switched to ${selectedEnv} environment: ${API_BASE_URL}`;
+            
+            // Reset connection status
+            isConnected = false;
+            document.getElementById('statusDot').classList.remove('connected');
+            
+            // Show environment-specific message
+            let envMessage = '';
+            switch(selectedEnv) {
+                case 'local':
+                    envMessage = '🏠 **Switched to Local Environment**\n\nMake sure your local backend is running on port 8000.';
+                    break;
+                case 'loadbalancer':
+                    envMessage = '⚖️ **Switched to Deployed ALB**\n\nConnecting directly to the Application Load Balancer. This bypasses CloudFront caching.';
+                    break;
+                case 'cloudfront':
+                    envMessage = '☁️ **Switched to CloudFront**\n\nUsing the production CloudFront distribution with global CDN.';
+                    break;
+            }
+            addMessage('assistant', envMessage);
+            
+            // Auto-test connection and load agents
+            setTimeout(() => {
+                testConnection();
+                loadAvailableAgents();
+            }, 1000);
+        }
+
+        async function loadAvailableAgents() {
+            const agentSelect = document.getElementById('agentSelect');
+            
+            try {
+                // Clear existing options except auto-select
+                agentSelect.innerHTML = '<option value="auto">🤖 Auto-Select Agent</option><option value="loading" disabled>Loading agents...</option>';
+                
+                const response = await fetch(`${API_BASE_URL}/api/agents/status`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const agentsArray = data.agents || [];
+                    
+                    // Convert array to object for easier access
+                    availableAgents = {};
+                    agentsArray.forEach(agent => {
+                        availableAgents[agent.agent_type || agent.agent_id] = agent;
+                    });
+                    
+                    // Remove loading option
+                    agentSelect.innerHTML = '<option value="auto">🤖 Auto-Select Agent</option>';
+                    
+                    // Add available agents
+                    agentsArray.forEach(agent => {
+                        const agentId = agent.agent_type || agent.agent_id;
+                        const option = document.createElement('option');
+                        option.value = agentId;
+                        
+                        // Format agent name and add status indicator
+                        const statusEmoji = agent.status === 'HEALTHY' ? '✅' : '⚠️';
+                        const agentName = formatAgentName(agentId);
+                        
+                        // Get domains from the agent data
+                        let domainsText = '';
+                        if (agent.domains && typeof agent.domains === 'object') {
+                            const activeDomains = Object.keys(agent.domains).filter(key => agent.domains[key]);
+                            if (activeDomains.length > 0) {
+                                domainsText = ` (${activeDomains.join(', ')})`;
+                            }
+                        }
+                        
+                        // Get capabilities
+                        const capabilities = agent.capabilities || [];
+                        const capabilitiesText = capabilities.length > 0 ? ` - ${capabilities.join(', ')}` : '';
+                        
+                        option.textContent = `${statusEmoji} ${agentName}${domainsText}`;
+                        option.title = `Status: ${agent.status}, ID: ${agent.agent_id}, Capabilities: ${capabilities.join(', ') || 'None'}`;
+                        
+                        agentSelect.appendChild(option);
+                    });
+                    
+                    // Show success message
+                    if (agentsArray.length > 0) {
+                        addMessage('assistant', `🤖 **Loaded ${agentsArray.length} available agents:**\n\n${agentsArray.map(agent => {
+                            const agentId = agent.agent_type || agent.agent_id;
+                            const statusEmoji = agent.status === 'HEALTHY' ? '✅' : '⚠️';
+                            const capabilities = agent.capabilities || [];
+                            const capabilitiesText = capabilities.length > 0 ? ` - ${capabilities.join(', ')}` : '';
+                            return `- ${statusEmoji} **${formatAgentName(agentId)}**${capabilitiesText}`;
+                        }).join('\n')}\n\nYou can select a specific agent from the dropdown or use "Auto-Select" for intelligent routing.`);
+                    } else {
+                        addMessage('assistant', '⚠️ **No agents found.** Using auto-select mode only.');
+                    }
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                console.error('Failed to load agents:', error);
+                agentSelect.innerHTML = '<option value="auto">🤖 Auto-Select Agent</option><option value="error" disabled>❌ Failed to load agents</option>';
+                addMessage('assistant', `⚠️ **Failed to load agents:** ${error.message}\n\nFalling back to auto-select mode.`);
+            }
+        }
+
+        function formatAgentName(agentId) {
+            // Convert agent ID to human-readable name
+            return agentId
+                .replace(/_/g, ' ')
+                .replace(/agentcore/gi, 'AgentCore')
+                .replace(/strands/gi, 'Strands')
+                .replace(/aws/gi, 'AWS')
+                .replace(/api/gi, 'API')
+                .replace(/wa/gi, 'WA')
+                .replace(/sec/gi, 'Security')
+                .replace(/cost/gi, 'Cost')
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+        }
+
+        function onAgentChange() {
+            const agentSelect = document.getElementById('agentSelect');
+            selectedAgent = agentSelect.value;
+            
+            if (selectedAgent === 'auto') {
+                addMessage('assistant', '🤖 **Auto-Select Mode Enabled**\n\nI will automatically choose the best agent based on your query content and context.');
+            } else if (availableAgents[selectedAgent]) {
+                const agent = availableAgents[selectedAgent];
+                const agentName = formatAgentName(selectedAgent);
+                const statusEmoji = agent.status === 'HEALTHY' ? '✅' : '⚠️';
+                const domains = agent.domains ? agent.domains.join(', ') : 'general';
+                const toolsCount = agent.tools_count || 0;
+                
+                addMessage('assistant', `${statusEmoji} **Selected Agent: ${agentName}**\n\n- **Status:** ${agent.status}\n- **Domains:** ${domains}\n- **Available Tools:** ${toolsCount}\n\nAll messages will now be directed to this specific agent.`);
+            }
+        }
+
+        async function testConnection() {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const currentEnv = document.getElementById('environmentSelect').value;
+
+            try {
+                statusText.textContent = 'Testing connection...';
+                statusDot.classList.remove('connected');
+
+                // For deployed environments, we might need to handle CORS differently
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+
+                // Add authentication for deployed environments
+                if (currentEnv !== 'local') {
+                    headers['Authorization'] = 'Bearer test-token'; // This would normally be a real token
+                }
+                // Local environment doesn't need authentication for health check
+
+                const response = await fetch(`${API_BASE_URL}/health`, {
+                    method: 'GET',
+                    headers: headers,
+                    // Add credentials for deployed environments
+                    credentials: currentEnv !== 'local' ? 'include' : 'same-origin'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    isConnected = true;
+                    statusDot.classList.add('connected');
+                    statusText.textContent = `Connected to ${currentEnv} - ${data.status || 'OK'}`;
+                    
+                    let successMessage = '';
+                    switch(currentEnv) {
+                        case 'local':
+                            successMessage = '✅ **Successfully connected to local backend!**\n\nYou can now test the full functionality locally.';
+                            break;
+                        case 'loadbalancer':
+                            successMessage = '✅ **Successfully connected to deployed ALB!**\n\nConnected directly to the Application Load Balancer. Backend container is running.';
+                            break;
+                        case 'cloudfront':
+                            successMessage = '✅ **Successfully connected to CloudFront!**\n\nConnected to the production deployment with global CDN.';
+                            break;
+                    }
+                    addMessage('assistant', successMessage);
+                    
+                    // Load available agents after successful connection
+                    setTimeout(() => {
+                        loadAvailableAgents();
+                    }, 1000);
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                isConnected = false;
+                statusDot.classList.remove('connected');
+                statusText.textContent = `Connection failed: ${error.message}`;
+                
+                let errorMessage = '';
+                switch(currentEnv) {
+                    case 'local':
+                        errorMessage = '❌ **Failed to connect to local backend.**\n\nMake sure your local development server is running on port 8000.';
+                        break;
+                    case 'loadbalancer':
+                        errorMessage = '❌ **Failed to connect to deployed ALB.**\n\nThe backend container might still be starting up. Check the ECS service status.';
+                        break;
+                    case 'cloudfront':
+                        errorMessage = '❌ **Failed to connect to CloudFront.**\n\nThe deployment might still be in progress. Try the ALB endpoint directly.';
+                        break;
+                }
+                addMessage('assistant', errorMessage);
+            }
+        }
+
+        function testSecurityServices() {
+            sendTestMessage("Check my security services");
+        }
+
+        function testSecurityFindings() {
+            sendTestMessage("What are my security findings?");
+        }
+
+        function testStorageEncryption() {
+            sendTestMessage("Analyze my storage encryption");
+        }
+
+        function testCostOptimization() {
+            sendTestMessage("Get recommendation for optimize my spending, through strands-cost-agent");
+        }
+
+        function testAgentSelection() {
+            if (selectedAgent === 'auto') {
+                sendTestMessage("I want to check my cost spending and security posture");
+            } else {
+                const agentName = formatAgentName(selectedAgent);
+                sendTestMessage(`Test message for ${agentName} agent - analyze my AWS environment`);
+            }
+        }
+
+        function sendTestMessage(message) {
+            document.getElementById('messageInput').value = message;
+            sendMessage();
+        }
+
+        function addMessage(role, content, toolExecutions = [], structuredData = null, humanSummary = null) {
+            const messagesContainer = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = role === 'user' ? '👤' : '🛡️';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            // Process content with markdown and JSON sections
+            let processedContent = processContentWithMarkdown(content, structuredData, humanSummary);
+            contentDiv.innerHTML = processedContent;
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentDiv);
+            messagesContainer.appendChild(messageDiv);
+
+            // Add click handlers for collapsible JSON sections
+            messageDiv.querySelectorAll('.json-summary').forEach(summary => {
+                summary.addEventListener('click', function () {
+                    const section = this.closest('.json-section');
+                    section.classList.toggle('collapsed');
+                });
+            });
+
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function processContentWithMarkdown(content, structuredData = null, humanSummary = null) {
+            // Clean up escaped newlines and prepare content for markdown parsing
+            let cleanContent = content.replace(/\\n/g, '\n');
+
+            // Extract JSON code blocks before markdown processing to handle them specially
+            const jsonBlocks = [];
+            const jsonBlockRegex = /```json\n([\s\S]*?)\n```/g;
+            let match;
+            let contentWithPlaceholders = cleanContent;
+
+            while ((match = jsonBlockRegex.exec(cleanContent)) !== null) {
+                try {
+                    const jsonString = match[1];
+                    const jsonData = JSON.parse(jsonString);
+                    const placeholder = `__JSON_BLOCK_${jsonBlocks.length}__`;
+
+                    // Generate human-readable summary
+                    const summary = generateJSONSummary(jsonData);
+
+                    // Create collapsible section
+                    const collapsibleSection = createCollapsibleJSONSection(jsonData, summary, 'Analysis Results');
+
+                    jsonBlocks.push(collapsibleSection);
+                    contentWithPlaceholders = contentWithPlaceholders.replace(match[0], placeholder);
+                } catch (e) {
+                    // If JSON parsing fails, let markdown handle it as a regular code block
+                }
+            }
+
+            // Parse markdown
+            let processedContent;
+            try {
+                // Configure marked for better security and formatting
+                marked.setOptions({
+                    breaks: true,
+                    gfm: true,
+                    sanitize: false, // We control the input
+                    smartLists: true,
+                    smartypants: false
+                });
+
+                processedContent = marked.parse(contentWithPlaceholders);
+            } catch (e) {
+                // Fallback to basic processing if marked fails
+                processedContent = contentWithPlaceholders
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/\n/g, '<br>');
+            }
+
+            // Restore JSON blocks
+            jsonBlocks.forEach((block, index) => {
+                const placeholder = `__JSON_BLOCK_${index}__`;
+                processedContent = processedContent.replace(placeholder, block);
+            });
+
+            // If we have structured data from the backend, add it as a collapsible section
+            if (structuredData) {
+                const summary = humanSummary || generateJSONSummary(structuredData);
+                const collapsibleSection = createCollapsibleJSONSection(structuredData, summary, 'Detailed Results');
+                processedContent += '<br>' + collapsibleSection;
+            }
+
+            return processedContent;
+        }
+
+        function createCollapsibleJSONSection(jsonData, humanSummary, title) {
+            const sectionId = 'json-section-' + Math.random().toString(36).substr(2, 9);
+
+            return `
+                <div class="json-section" id="${sectionId}">
+                    <div class="json-summary">
+                        <span>📊 ${title}</span>
+                    </div>
+                    <div class="json-content">
+                        <div class="human-summary">
+                            ${humanSummary}
+                        </div>
+                        <div class="json-raw">
+                            <strong>Raw Data:</strong>
+                            <pre>${JSON.stringify(jsonData, null, 2)}</pre>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateJSONSummary(data) {
+            try {
+                // Generate a basic summary based on common patterns
+                if (data.service_statuses) {
+                    // Security services check
+                    const services = Object.keys(data.service_statuses);
+                    const enabled = services.filter(s => data.service_statuses[s].enabled).length;
+                    return `
+                        <h3>🛡️ Security Services Status</h3>
+                        <p><strong>Services Checked:</strong> ${services.length}</p>
+                        <p><strong>Enabled Services:</strong> ${enabled}/${services.length}</p>
+                        <ul>
+                            ${services.map(service => {
+                        const status = data.service_statuses[service];
+                        const emoji = status.enabled ? '✅' : '❌';
+                        return `<li>${emoji} <strong>${service}:</strong> ${status.status}</li>`;
+                    }).join('')}
+                        </ul>
+                        ${data.recommendations ? `
+                            <p><strong>🔧 Recommendations:</strong></p>
+                            <ul>${data.recommendations.map(rec => `<li>${rec}</li>`).join('')}</ul>
+                        ` : ''}
+                    `;
+                } else if (data.findings) {
+                    // Security findings
+                    const severityCounts = {};
+                    data.findings.forEach(f => {
+                        severityCounts[f.severity] = (severityCounts[f.severity] || 0) + 1;
+                    });
+
+                    return `
+                        <h3>🔍 Security Findings</h3>
+                        <p><strong>Total Findings:</strong> ${data.findings.length}</p>
+                        <p><strong>Severity Breakdown:</strong></p>
+                        <ul>
+                            ${Object.entries(severityCounts).map(([severity, count]) => {
+                        const emoji = severity === 'HIGH' ? '🔴' : severity === 'MEDIUM' ? '🟡' : '🟢';
+                        return `<li>${emoji} ${severity}: ${count}</li>`;
+                    }).join('')}
+                        </ul>
+                        <p><strong>Top Findings:</strong></p>
+                        <ul>
+                            ${data.findings.slice(0, 3).map(finding => `
+                                <li><strong>${finding.title}:</strong> ${finding.description}</li>
+                            `).join('')}
+                        </ul>
+                    `;
+                } else if (data.compliance_by_service) {
+                    // Storage encryption check
+                    const compliant = data.compliant_resources || 0;
+                    const nonCompliant = data.non_compliant_resources || 0;
+                    const total = compliant + nonCompliant;
+
+                    return `
+                        <h3>🔐 Storage Encryption Status</h3>
+                        <p><strong>Compliance Rate:</strong> ${total > 0 ? Math.round((compliant / total) * 100) : 0}% (${compliant}/${total})</p>
+                        <p><strong>Service Breakdown:</strong></p>
+                        <ul>
+                            ${Object.entries(data.compliance_by_service).map(([service, stats]) => {
+                        const rate = stats.total > 0 ? Math.round((stats.encrypted / stats.total) * 100) : 0;
+                        const emoji = stats.unencrypted === 0 ? '✅' : '⚠️';
+                        return `<li>${emoji} <strong>${service.toUpperCase()}:</strong> ${rate}% encrypted (${stats.encrypted}/${stats.total})</li>`;
+                    }).join('')}
+                        </ul>
+                        ${data.recommendations ? `
+                            <p><strong>🔧 Recommendations:</strong></p>
+                            <ul>${data.recommendations.map(rec => `<li>${rec}</li>`).join('')}</ul>
+                        ` : ''}
+                    `;
+                } else {
+                    // Generic summary
+                    const keys = Object.keys(data).slice(0, 5);
+                    return `
+                        <h3>📋 Analysis Results</h3>
+                        <p>Key information extracted from the analysis:</p>
+                        <ul>
+                            ${keys.map(key => `<li><strong>${key}:</strong> ${JSON.stringify(data[key]).substring(0, 100)}${JSON.stringify(data[key]).length > 100 ? '...' : ''}</li>`).join('')}
+                        </ul>
+                    `;
+                }
+            } catch (e) {
+                return `<h3>📋 Analysis Results</h3><p>Analysis completed successfully. View raw data below for details.</p>`;
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const errorDiv = document.getElementById('chatError');
+            const awsAccountIdInput = document.getElementById('awsAccountId');
+
+            const message = input.value.trim();
+            if (!message) return;
+
+            if (!isConnected) {
+                errorDiv.textContent = 'Not connected to backend. Please test connection first.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            const awsAccountId = awsAccountIdInput.value.trim();
+
+            // Add agent targeting identifier to user message
+            let userMessageWithAgent = message;
+            if (selectedAgent !== 'auto' && availableAgents[selectedAgent]) {
+                const agentName = formatAgentName(selectedAgent);
+                const agentStatus = availableAgents[selectedAgent].status === 'HEALTHY' ? '✅' : '⚠️';
+                userMessageWithAgent = `${message} <span style="font-size: 0.8em; color: #666; font-style: italic;">→ ${agentStatus} ${agentName} (Manual)</span>`;
+            } else {
+                userMessageWithAgent = `${message} <span style="font-size: 0.8em; color: #666; font-style: italic;">→ 🤖 Auto-Select</span>`;
+            }
+            
+            addMessage('user', userMessageWithAgent);
+            input.value = '';
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending...';
+            errorDiv.style.display = 'none';
+
+            try {
+                // Prepare the request body with proper agent selection context
+                const requestBody = {
+                    message: message,
+                    session_id: 'test-session-' + Date.now(),
+                    context: {}
+                };
+
+                // Include AWS Account ID if provided
+                if (awsAccountId) {
+                    requestBody.context.aws_account_id = awsAccountId;
+                }
+
+                // Include selected agent information in context for backend processing
+                if (selectedAgent !== 'auto' && availableAgents[selectedAgent]) {
+                    requestBody.context.selected_agent = selectedAgent;
+                    requestBody.context.agent_selection_mode = 'manual';
+                    
+                    // Also add agent selection hint to the message for LLM context
+                    const agentName = formatAgentName(selectedAgent);
+                    requestBody.message = `[Agent Selection: ${agentName} (${selectedAgent})] ${message}`;
+                    
+                    console.log(`Routing to selected agent: ${selectedAgent} (${agentName})`);
+                } else {
+                    requestBody.context.agent_selection_mode = 'auto';
+                    console.log('Using automatic agent selection');
+                }
+
+                const currentEnv = document.getElementById('environmentSelect').value;
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+
+                // Add appropriate authentication based on environment
+                if (currentEnv !== 'local') {
+                    headers['Authorization'] = 'Bearer test-token'; // For deployed environments
+                }
+                // Local environment doesn't need authentication
+
+                const response = await fetch(`${API_BASE_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: headers,
+                    credentials: currentEnv !== 'local' ? 'include' : 'same-origin',
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+
+                // Handle structured responses with JSON data
+                if (data.structured_data) {
+                    addMessage('assistant', data.response || 'Analysis completed.', [], data.structured_data, data.human_summary);
+                } else {
+                    addMessage('assistant', data.response || 'I received your message but had no response.');
+                }
+
+            } catch (error) {
+                console.error('Chat error:', error);
+                errorDiv.textContent = `Failed to send message: ${error.message}`;
+                errorDiv.style.display = 'block';
+                addMessage('assistant', 'Sorry, I encountered an error. Please check the connection and try again.');
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send';
+            }
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+            addMessage('assistant', '🧹 **Chat cleared.** Ready for new conversation with full markdown support!');
+        }
+
+        // Debug function - you can call this from browser console
+        window.debugTemplates = async function() {
+            console.log('=== TEMPLATE DEBUG START ===');
+            
+            try {
+                // Test direct access to index.json
+                console.log('1. Testing direct access to index.json...');
+                const indexUrl = './prompt-templates/index.json';
+                const response = await fetch(indexUrl);
+                console.log('Index.json response status:', response.status, response.statusText);
+                
+                if (response.ok) {
+                    const indexData = await response.json();
+                    console.log('2. Index.json content:', indexData);
+                    console.log('3. Categories found:', Object.keys(indexData.categories || {}));
+                    
+                    // Test template discovery service
+                    console.log('4. Testing template discovery service...');
+                    if (templateDiscoveryService) {
+                        const structure = await templateDiscoveryService.scanTemplateDirectory();
+                        console.log('5. Template discovery result:', structure);
+                    } else {
+                        console.log('5. Template discovery service not initialized');
+                    }
+                } else {
+                    console.log('2. Failed to load index.json');
+                }
+                
+                // Check current promptTemplates state
+                console.log('6. Current promptTemplates:', promptTemplates);
+                
+            } catch (error) {
+                console.error('Debug error:', error);
+            }
+            
+            console.log('=== TEMPLATE DEBUG END ===');
+        };
+
+        // Prompt Templates Functionality - Clean Implementation
+        let promptTemplates = {};
+
+        async function loadPromptTemplatesAutomatically() {
+            const statusDot = document.getElementById('templatesStatusDot');
+            const statusText = document.getElementById('templatesStatusText');
+            const container = document.getElementById('promptTemplatesContainer');
+            
+            try {
+                // Update status to loading
+                statusDot.className = 'status-dot';
+                statusText.textContent = 'Loading templates...';
+                container.innerHTML = '<p class="templates-placeholder">Discovering available prompt templates...</p>';
+
+                // Try to load from index.json first, then fall back to template discovery service
+                let templateStructure;
+                try {
+                    const indexResponse = await fetch('prompt-templates/index.json');
+                    if (indexResponse.ok) {
+                        templateStructure = await indexResponse.json();
+                        console.log('Template structure loaded from index.json:', templateStructure);
+                    } else {
+                        throw new Error('index.json not accessible');
+                    }
+                } catch (indexError) {
+                    console.log('Falling back to template discovery service:', indexError.message);
+                    templateStructure = await templateDiscoveryService.scanTemplateDirectory();
+                    console.log('Template structure loaded from discovery service:', templateStructure);
+                }
+                
+                // Convert template structure to the format expected by the UI
+                promptTemplates = {};
+                
+                // Check if templateStructure has the new index.json format
+                if (templateStructure.categories) {
+                    // New index.json format with subcategory support
+                    for (const [category, categoryData] of Object.entries(templateStructure.categories)) {
+                        console.log(`Processing category: ${category}`, categoryData);
+                        promptTemplates[category] = categoryData.templates || [];
+                        
+                        // Add subcategory templates
+                        if (categoryData.subcategories) {
+                            for (const [subcategoryName, subcategoryData] of Object.entries(categoryData.subcategories)) {
+                                subcategoryData.templates.forEach(template => {
+                                    template.subcategory = subcategoryName;
+                                    promptTemplates[category].push(template);
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    // Old format or direct template structure
+                    for (const [category, templates] of Object.entries(templateStructure)) {
+                        console.log(`Processing category: ${category}`, templates);
+                        
+                        // Handle both old and new template formats
+                        promptTemplates[category] = templates.map(template => {
+                            if (typeof template === 'string') {
+                                // Old format: just filename
+                                console.log(`Old format template: ${template}`);
+                                return template;
+                            } else {
+                                // New format: template object with displayName and filename
+                                const filename = template.filename || (template.displayName + '.md');
+                                console.log(`New format template: ${template.displayName} -> ${filename}`);
+                                return {
+                                    displayName: template.displayName || template.name,
+                                    filename: filename,
+                                    name: template.name
+                                };
+                            }
+                        });
+                    }
+                }
+                
+                console.log('Final promptTemplates structure:', promptTemplates);
+                
+                if (Object.keys(promptTemplates).length === 0) {
+                    // No templates found
+                    statusDot.className = 'status-dot error';
+                    statusText.textContent = 'No templates found';
+                    container.innerHTML = '<p class="templates-placeholder">No prompt templates available</p>';
+                    return;
+                }
+
+                // Create category dropdowns
+                container.innerHTML = '';
+                Object.keys(promptTemplates).forEach(category => {
+                    const categoryDiv = createCategoryDropdown(category, promptTemplates[category]);
+                    container.appendChild(categoryDiv);
+                });
+
+                // Update status to success and add success message to chat
+                const totalTemplatesCount = Object.values(promptTemplates).reduce((sum, templates) => sum + templates.length, 0);
+                statusDot.className = 'status-dot loaded';
+                statusText.textContent = `${totalTemplatesCount} templates loaded`;
+                const categoryCount = Object.keys(promptTemplates).length;
+                
+                // Count optimized templates (those with " - " in the name)
+                let optimizedCount = 0;
+                Object.values(promptTemplates).forEach(templates => {
+                    templates.forEach(template => {
+                        const displayName = typeof template === 'string' ? template : (template.displayName || template.name);
+                        if (displayName && displayName.includes(' - ')) {
+                            optimizedCount++;
+                        }
+                    });
+                });
+                
+                const optimizedMessage = optimizedCount > 0 ? `\n\n✨ **${optimizedCount} optimized templates** available with focused, fast-executing prompts!` : '';
+                
+                addMessage('assistant', `📋 **Prompt Templates Auto-Loaded!**\n\nAutomatically discovered **${categoryCount} categories** with **${totalTemplatesCount} total templates**:\n\n${Object.entries(promptTemplates).map(([category, templates]) => `• **${category}**: ${templates.length} templates`).join('\n')}\n\nTemplates are organized with sub-menus for related prompts. Click on any category button to see available prompts.${optimizedMessage}`);
+
+            } catch (error) {
+                console.error('Failed to auto-load prompt templates:', error);
+                
+                // Update status to error
+                statusDot.className = 'status-dot error';
+                statusText.textContent = 'Load failed';
+                container.innerHTML = '<p class="templates-placeholder">Failed to load templates. Using fallback mode.</p>';
+                
+                // Try to load fallback templates
+                try {
+                    promptTemplates = await getFallbackTemplates();
+                    if (Object.keys(promptTemplates).length > 0) {
+                        container.innerHTML = '';
+                        Object.keys(promptTemplates).forEach(category => {
+                            const categoryDiv = createCategoryDropdown(category, promptTemplates[category]);
+                            container.appendChild(categoryDiv);
+                        });
+                        statusText.textContent = 'Fallback templates loaded';
+                    }
+                } catch (fallbackError) {
+                    console.error('Fallback templates also failed:', fallbackError);
+                }
+                
+                // Add environment-aware error message to chat
+                const currentEnv = document.getElementById('environmentSelect').value;
+                let envMessage = '';
+                
+                if (currentEnv === 'local') {
+                    envMessage = '\n\n**Note**: In local development, templates are loaded via API fallback. In production (S3), they will be served directly as static files.';
+                } else {
+                    envMessage = '\n\n**Note**: Templates should be available as static files in production. Please check if the prompt-templates directory was deployed to S3.';
+                }
+                
+                addMessage('assistant', `⚠️ **Template Loading Issue**\n\nEncountered an error while loading prompt templates: ${error.message}\n\nFallback templates are available. You can still use the interface normally.${envMessage}`);
+            }
+        }
+
+        function createCategoryDropdown(category, templates) {
+            const categoryDiv = document.createElement('div');
+            categoryDiv.className = 'template-category';
+
+            const categoryBtn = document.createElement('button');
+            categoryBtn.className = 'category-btn';
+            categoryBtn.textContent = category;
+            categoryBtn.onclick = () => toggleCategoryDropdown(category);
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'template-dropdown';
+            dropdown.id = `dropdown-${category.replace(/\s+/g, '-').toLowerCase()}`;
+
+            // Group templates by base name to create sub-menus
+            const groupedTemplates = groupTemplatesByBaseName(templates);
+            
+            Object.entries(groupedTemplates).forEach(([baseName, templateGroup]) => {
+                if (templateGroup.length === 1) {
+                    // Single template - create regular item
+                    const template = templateGroup[0];
+                    const templateItem = createTemplateItem(template, category);
+                    dropdown.appendChild(templateItem);
+                } else {
+                    // Multiple templates with same base name - create sub-menu
+                    const subMenuContainer = createSubMenu(baseName, templateGroup, category);
+                    dropdown.appendChild(subMenuContainer);
+                }
+            });
+
+            categoryDiv.appendChild(categoryBtn);
+            categoryDiv.appendChild(dropdown);
+
+            return categoryDiv;
+        }
+
+        function groupTemplatesByBaseName(templates) {
+            const groups = {};
+            
+            templates.forEach(template => {
+                let displayName, filename;
+                if (typeof template === 'string') {
+                    displayName = template.replace('.md', '');
+                    filename = template;
+                } else {
+                    displayName = template.displayName || template.name;
+                    filename = template.filename || (template.name + '.md');
+                }
+                
+                // Extract base name (everything before the first " - ")
+                const baseName = displayName.split(' - ')[0];
+                
+                if (!groups[baseName]) {
+                    groups[baseName] = [];
+                }
+                
+                groups[baseName].push({
+                    displayName,
+                    filename,
+                    fullName: displayName,
+                    isSubTemplate: displayName.includes(' - ')
+                });
+            });
+            
+            return groups;
+        }
+
+        function createSubMenu(baseName, templateGroup, category) {
+            const subMenuContainer = document.createElement('div');
+            subMenuContainer.className = 'template-submenu-container';
+            
+            const subMenuHeader = document.createElement('div');
+            subMenuHeader.className = 'template-submenu-header';
+            subMenuHeader.innerHTML = `
+                <span class="submenu-title">${baseName}</span>
+                <span class="submenu-arrow">▶</span>
+            `;
+            
+            const subMenuContent = document.createElement('div');
+            subMenuContent.className = 'template-submenu-content';
+            subMenuContent.style.display = 'none';
+            
+            // Add main template first (if exists)
+            const mainTemplate = templateGroup.find(t => !t.isSubTemplate);
+            if (mainTemplate) {
+                const mainItem = createTemplateItem(mainTemplate, category, 'main-template');
+                subMenuContent.appendChild(mainItem);
+            }
+            
+            // Add sub-templates
+            const subTemplates = templateGroup.filter(t => t.isSubTemplate);
+            subTemplates.forEach(template => {
+                const subItem = createTemplateItem(template, category, 'sub-template');
+                subMenuContent.appendChild(subItem);
+            });
+            
+            // Toggle sub-menu on header click
+            subMenuHeader.onclick = (e) => {
+                e.stopPropagation();
+                const isOpen = subMenuContent.style.display !== 'none';
+                subMenuContent.style.display = isOpen ? 'none' : 'block';
+                subMenuHeader.querySelector('.submenu-arrow').textContent = isOpen ? '▶' : '▼';
+                subMenuHeader.classList.toggle('open', !isOpen);
+            };
+            
+            subMenuContainer.appendChild(subMenuHeader);
+            subMenuContainer.appendChild(subMenuContent);
+            
+            return subMenuContainer;
+        }
+
+        function createTemplateItem(template, category, itemClass = '') {
+            const templateItem = document.createElement('div');
+            templateItem.className = `template-item ${itemClass}`.trim();
+            
+            // Show sub-template name (part after " - ") or full name
+            const displayText = template.isSubTemplate 
+                ? template.fullName.split(' - ').slice(1).join(' - ')
+                : template.displayName;
+            
+            templateItem.textContent = displayText;
+            templateItem.title = template.fullName; // Show full name on hover
+            
+            templateItem.onclick = () => {
+                // Add visual feedback
+                templateItem.classList.add('clicked');
+                setTimeout(() => templateItem.classList.remove('clicked'), 200);
+                
+                // Load and send template
+                loadAndSendTemplate(category, template.filename);
+            };
+            
+            return templateItem;
+        }
+
+
+
+        async function getFallbackTemplates() {
+            // Return hardcoded fallback templates
+            return {
+                "Cost Optimization": [
+                    "Insights from Compute Optimizer.md",
+                    "Scan for saving plans options.md"
+                ],
+                "Security": [
+                    "Check Network Encryption.md",
+                    "Security Services.md",
+                    "Storage Encryption Analysis.md"
+                ]
+            };
+        }
+
+        function createSubMenu(baseName, templateGroup, category) {
+            const subMenuContainer = document.createElement('div');
+            subMenuContainer.className = 'template-submenu-container';
+            
+            const subMenuHeader = document.createElement('div');
+            subMenuHeader.className = 'template-submenu-header';
+            subMenuHeader.innerHTML = `
+                <span class="submenu-title">${baseName}</span>
+                <span class="submenu-arrow">▶</span>
+            `;
+            
+            const subMenuContent = document.createElement('div');
+            subMenuContent.className = 'template-submenu-content';
+            subMenuContent.style.display = 'none';
+            
+            // Add main template first (if exists)
+            const mainTemplate = templateGroup.find(t => !t.isSubTemplate);
+            if (mainTemplate) {
+                const mainItem = createTemplateItem(mainTemplate, category, 'main-template');
+                subMenuContent.appendChild(mainItem);
+            }
+            
+            // Add sub-templates
+            const subTemplates = templateGroup.filter(t => t.isSubTemplate);
+            subTemplates.forEach(template => {
+                const subItem = createTemplateItem(template, category, 'sub-template');
+                subMenuContent.appendChild(subItem);
+            });
+            
+            // Toggle sub-menu on header click
+            subMenuHeader.onclick = (e) => {
+                e.stopPropagation();
+                const isOpen = subMenuContent.style.display !== 'none';
+                subMenuContent.style.display = isOpen ? 'none' : 'block';
+                subMenuHeader.querySelector('.submenu-arrow').textContent = isOpen ? '▶' : '▼';
+                subMenuHeader.classList.toggle('open', !isOpen);
+            };
+            
+            subMenuContainer.appendChild(subMenuHeader);
+            subMenuContainer.appendChild(subMenuContent);
+            
+            return subMenuContainer;
+        }
+
+        function createTemplateItem(template, category, itemClass = '') {
+            const templateItem = document.createElement('div');
+            templateItem.className = `template-item ${itemClass}`.trim();
+            
+            // Show sub-template name (part after " - ") or full name
+            const displayText = template.isSubTemplate 
+                ? template.fullName.split(' - ').slice(1).join(' - ')
+                : template.displayName;
+            
+            templateItem.textContent = displayText;
+            templateItem.title = template.fullName; // Show full name on hover
+            
+            templateItem.onclick = () => {
+                // Add visual feedback
+                templateItem.classList.add('clicked');
+                setTimeout(() => templateItem.classList.remove('clicked'), 200);
+                
+                // Load and send template
+                loadAndSendTemplate(category, template.filename);
+            };
+            
+            return templateItem;
+        }
+
+        function toggleCategoryDropdown(category) {
+            const dropdownId = `dropdown-${category.replace(/\s+/g, '-').toLowerCase()}`;
+            const dropdown = document.getElementById(dropdownId);
+            const btn = dropdown.previousElementSibling;
+
+            // Close all other dropdowns
+            document.querySelectorAll('.template-dropdown').forEach(d => {
+                if (d.id !== dropdownId) {
+                    d.classList.remove('show');
+                    d.previousElementSibling.classList.remove('active');
+                }
+            });
+
+            // Toggle current dropdown
+            dropdown.classList.toggle('show');
+            btn.classList.toggle('active');
+
+            // Close dropdown when clicking outside
+            if (dropdown.classList.contains('show')) {
+                setTimeout(() => {
+                    document.addEventListener('click', function closeDropdown(e) {
+                        if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
+                            dropdown.classList.remove('show');
+                            btn.classList.remove('active');
+                            document.removeEventListener('click', closeDropdown);
+                        }
+                    });
+                }, 100);
+            }
+        }
+
+        async function loadAndSendTemplate(category, templateFile) {
+            const templateName = templateFile.replace('.md', '');
+            
+            try {
+                // Close the dropdown
+                const dropdownId = `dropdown-${category.replace(/\s+/g, '-').toLowerCase()}`;
+                const dropdown = document.getElementById(dropdownId);
+                const btn = dropdown.previousElementSibling;
+                dropdown.classList.remove('show');
+                btn.classList.remove('active');
+
+                // Show user message with template title, category, and agent targeting
+                let templateMessageWithAgent = `📋 ${templateName} (${category})`;
+                if (selectedAgent !== 'auto' && availableAgents[selectedAgent]) {
+                    const agentName = formatAgentName(selectedAgent);
+                    const agentStatus = availableAgents[selectedAgent].status === 'HEALTHY' ? '✅' : '⚠️';
+                    templateMessageWithAgent += ` <span style="font-size: 0.8em; color: #666; font-style: italic;">→ ${agentStatus} ${agentName} (Manual)</span>`;
+                } else {
+                    templateMessageWithAgent += ` <span style="font-size: 0.8em; color: #666; font-style: italic;">→ 🤖 Auto-Select</span>`;
+                }
+                
+                addMessage('user', templateMessageWithAgent);
+
+                // Show loading indicator for assistant response
+                addMessage('assistant', '🤔 Processing template...');
+                
+                // Load and process template content in background
+                const templateContent = await fetchTemplateContent(category, templateFile);
+                
+                if (!templateContent) {
+                    // Update loading message to error
+                    updateLastAssistantMessage(`❌ **Failed to load template:** ${templateName}\n\nTemplate content could not be retrieved.`);
+                    return;
+                }
+
+                // Process template variables
+                const processedContent = processTemplateVariables(templateContent);
+                
+                // Send the processed template content to backend in background
+                await sendTemplateToBackend(processedContent, templateName, category);
+
+            } catch (error) {
+                console.error('Failed to load and send template:', error);
+                updateLastAssistantMessage(`❌ **Error processing template:** ${templateName}\n\n${error.message}`);
+            }
+        }
+
+        async function sendTemplateToBackend(templateContent, templateName, category) {
+            const sendBtn = document.getElementById('sendBtn');
+            const errorDiv = document.getElementById('chatError');
+            const awsAccountIdInput = document.getElementById('awsAccountId');
+
+            try {
+                // Prepare request data
+                const awsAccountId = awsAccountIdInput.value.trim();
+                const requestBody = {
+                    message: templateContent,
+                    session_id: 'template-session-' + Date.now(),
+                    context: {
+                        template_name: templateName,
+                        template_category: category,
+                        is_template_request: true
+                    }
+                };
+
+                // Include AWS Account ID if provided
+                if (awsAccountId) {
+                    requestBody.context.aws_account_id = awsAccountId;
+                }
+
+                // Include selected agent information in context
+                const currentSelectedAgent = document.getElementById('agentSelect').value;
+                if (currentSelectedAgent !== 'auto' && availableAgents[currentSelectedAgent]) {
+                    requestBody.context.selected_agent = currentSelectedAgent;
+                    requestBody.context.agent_selection_mode = 'manual';
+                    
+                    // Add agent selection hint to the template content
+                    const agentName = formatAgentName(currentSelectedAgent);
+                    requestBody.message = `[Agent Selection: ${agentName} (${currentSelectedAgent})] ${templateContent}`;
+                    
+                    console.log(`Template routing to selected agent: ${currentSelectedAgent} (${agentName})`);
+                } else {
+                    requestBody.context.agent_selection_mode = 'auto';
+                    console.log('Template using automatic agent selection');
+                }
+
+                // Determine API endpoint based on environment
+                const currentEnv = document.getElementById('environmentSelect').value;
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+
+                // Add appropriate authentication based on environment
+                if (currentEnv !== 'local') {
+                    headers['Authorization'] = 'Bearer test-token'; // For deployed environments
+                }
+
+                // Update loading message to show processing
+                updateLastAssistantMessage(`🔄 Analyzing **${templateName}** template and generating response...`);
+
+                // Send request to backend
+                const response = await fetch(`${API_BASE_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: headers,
+                    credentials: currentEnv !== 'local' ? 'include' : 'same-origin',
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+
+                // Replace loading message with actual response
+                if (data.structured_data) {
+                    updateLastAssistantMessage(data.response || 'Analysis completed.', [], data.structured_data, data.human_summary);
+                } else {
+                    updateLastAssistantMessage(data.response || 'Template processed successfully.');
+                }
+
+            } catch (error) {
+                console.error('Template backend request error:', error);
+                errorDiv.textContent = `Failed to process template: ${error.message}`;
+                errorDiv.style.display = 'block';
+                
+                // Update loading message with error
+                updateLastAssistantMessage(`❌ **Template Processing Failed**\n\nError: ${error.message}\n\nPlease check your connection and try again.`);
+                
+                // Hide error after 5 seconds
+                setTimeout(() => {
+                    errorDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Process template variables (placeholder implementation)
+        function processTemplateVariables(content) {
+            if (!content) return '';
+            
+            // Replace common template variables
+            let processed = content
+                .replace(/\{\{AWS_ACCOUNT_ID\}\}/g, document.getElementById('awsAccountId').value || '123456789012')
+                .replace(/\{\{REGION\}\}/g, 'us-east-1')
+                .replace(/\{\{DATE\}\}/g, new Date().toISOString().split('T')[0]);
+            
+            return processed;
+        }
+
+        // Generate fallback template content
+        function generateFallbackTemplate(templateName, categoryName) {
+            return `# ${templateName}
+
+I apologize, but there was an error loading the "${templateName}" template from the ${categoryName} category.
+
+## What I can help with instead:
+
+Please describe what you would like me to analyze or assess regarding ${templateName.toLowerCase()}, and I'll provide you with a comprehensive response.
+
+## Common requests for ${categoryName}:
+
+- Analysis and assessment
+- Best practices recommendations
+- Configuration reviews
+- Troubleshooting guidance
+
+Please provide details about your specific requirements and I'll assist you accordingly.`;
+        }
+
+        // Initialize template system
+        function initializeTemplateSystem() {
+            console.log('Initializing template system...');
+            
+            // Initialize template discovery service if not already done
+            if (!templateDiscoveryService) {
+                templateDiscoveryService = new TemplateDiscoveryService();
+            }
+            
+            // Load templates automatically
+            setTimeout(() => {
+                loadPromptTemplatesAutomatically();
+            }, 1000);
+        }
+
+        // Update template dropdowns
+        function updateTemplateDropdowns() {
+            const container = document.getElementById('promptTemplatesContainer');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (promptTemplates && Object.keys(promptTemplates).length > 0) {
+                Object.keys(promptTemplates).forEach(category => {
+                    const categoryDiv = createCategoryDropdown(category, promptTemplates[category]);
+                    container.appendChild(categoryDiv);
+                });
+            } else {
+                container.innerHTML = '<p class="templates-placeholder">No templates available</p>';
+            }
+        }
+
+        function updateLastAssistantMessage(content, toolExecutions = [], structuredData = null, humanSummary = null) {
+            const messagesContainer = document.getElementById('messages');
+            const messages = messagesContainer.querySelectorAll('.message.assistant');
+            
+            if (messages.length > 0) {
+                const lastMessage = messages[messages.length - 1];
+                const contentDiv = lastMessage.querySelector('.message-content');
+                
+                // Process content with markdown and JSON sections
+                let processedContent = processContentWithMarkdown(content, structuredData, humanSummary);
+                contentDiv.innerHTML = processedContent;
+
+                // Add click handlers for collapsible JSON sections
+                contentDiv.querySelectorAll('.json-summary').forEach(summary => {
+                    summary.addEventListener('click', function () {
+                        const section = this.closest('.json-section');
+                        section.classList.toggle('collapsed');
+                    });
+                });
+
+                // Scroll to bottom
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        }
+
+        async function fetchTemplateContent(category, templateFile) {
+            const templateName = templateFile.replace('.md', '');
+            
+            try {
+                // Use the new template discovery service
+                console.log(`🔍 Loading template via TemplateDiscoveryService: ${category}/${templateFile}`);
+                const content = await templateDiscoveryService.loadTemplateByName(category, templateName);
+                
+                if (!content || content.trim().length === 0) {
+                    throw new Error('Template content is empty');
+                }
+                
+                console.log(`✅ Successfully loaded template via TemplateDiscoveryService: ${templateName}`);
+                return content;
+                
+            } catch (error) {
+                console.error(`Failed to fetch template via direct access ${category}/${templateFile}:`, error);
+                
+                // Try API fallback
+                try {
+                    const apiPath = `${API_BASE_URL}/api/prompt-templates/${encodeURIComponent(category)}/${encodeURIComponent(templateFile)}`;
+                    console.log(`🔄 Attempting API fallback: ${apiPath}`);
+                    
+                    const apiResponse = await fetch(apiPath);
+                    
+                    if (apiResponse.ok) {
+                        const data = await apiResponse.json();
+                        if (data.content && data.content.trim().length > 0) {
+                            console.log(`✅ Successfully loaded template via API fallback: ${templateName}`);
+                            return data.content;
+                        }
+                    }
+                    throw new Error(`API fallback failed: HTTP ${apiResponse.status}: ${apiResponse.statusText}`);
+                    
+                } catch (apiError) {
+                    console.error('❌ API fallback also failed:', apiError);
+                    
+                    // Provide category-specific fallback content
+                    const fallbackContent = generateFallbackTemplate(category, templateName);
+                    
+                    // Show user-friendly error message
+                    addMessage('assistant', `⚠️ **Template Loading Notice**\n\nCouldn't load the original "${templateName}" template via direct access (${error.message}) or API fallback (${apiError.message}). Using a generated fallback template instead.`);
+                    
+                    return fallbackContent;
+                }
+            }
+        }
+
+        function generateFallbackTemplate(category, templateName) {
+            const categoryPrompts = {
+                'Cost Optimization': `# ${templateName}
+
+Analyze my AWS cost optimization opportunities and provide actionable recommendations to reduce spending while maintaining performance.
+
+## Analysis Areas
+
+### Compute Optimization
+- **EC2 Instances**: Right-sizing recommendations and instance family optimization
+- **Auto Scaling**: Review scaling policies and capacity planning
+- **Lambda Functions**: Memory allocation and execution optimization
+- **Container Services**: ECS/EKS resource optimization
+
+### Storage Optimization
+- **S3 Storage Classes**: Lifecycle policies and intelligent tiering
+- **EBS Volumes**: Volume type optimization and unused volume identification
+- **Data Transfer**: Cross-AZ and internet data transfer costs
+
+### Reserved Capacity & Savings Plans
+- **Coverage Analysis**: Current utilization of reserved instances and savings plans
+- **Recommendations**: New purchase recommendations based on usage patterns
+
+## Account Context
+- AWS Account ID: {{account_id}}
+- Environment: {{environment}}
+- Analysis Period: Last 30 days
+
+Please provide prioritized recommendations with estimated savings and implementation complexity.`,
+
+                'Security': `# ${templateName}
+
+Perform a comprehensive security assessment of my AWS environment and provide recommendations to improve security posture.
+
+## Security Assessment Areas
+
+### Identity and Access Management
+- **IAM Policies**: Review permissions and identify over-privileged access
+- **User Access**: Analyze user activity and access patterns
+- **Service Roles**: Validate service-to-service permissions
+
+### Network Security
+- **VPC Configuration**: Security groups and NACLs analysis
+- **Network Segmentation**: Subnet isolation and traffic flow
+- **Encryption in Transit**: TLS/SSL configuration review
+
+### Data Protection
+- **Encryption at Rest**: S3, EBS, RDS encryption status
+- **Key Management**: KMS key usage and rotation policies
+- **Data Classification**: Sensitive data identification and protection
+
+### Monitoring and Compliance
+- **CloudTrail**: Audit logging configuration
+- **GuardDuty**: Threat detection findings
+- **Security Hub**: Compliance framework adherence
+
+## Account Context
+- AWS Account ID: {{account_id}}
+- Environment: {{environment}}
+- Compliance Requirements: {{compliance_framework}}
+
+Please provide detailed findings with remediation steps and priority levels.`
+            };
+
+            return categoryPrompts[category] || `# ${templateName}
+
+Please analyze my AWS environment for ${category.toLowerCase()} optimization opportunities.
+
+## Analysis Request
+
+I would like you to examine my AWS account and provide recommendations for:
+- Current state assessment
+- Best practices alignment
+- Optimization opportunities
+- Implementation guidance
+
+## Account Context
+- AWS Account ID: {{account_id}}
+- Environment: {{environment}}
+- Focus Area: ${category}
+
+Please provide detailed analysis with actionable recommendations.`;
+        }
+
+        function processTemplateVariables(content) {
+            // Get current context values
+            const awsAccountId = document.getElementById('awsAccountId').value || '{{account_id}}';
+            const currentEnv = document.getElementById('environmentSelect').value || 'local';
+            const selectedAgentElement = document.getElementById('agentSelect');
+            const selectedAgent = selectedAgentElement ? selectedAgentElement.value : 'auto';
+            
+            // Map environment to more descriptive names
+            const envMapping = {
+                'local': 'Development/Testing',
+                'loadbalancer': 'Staging',
+                'cloudfront': 'Production'
+            };
+            
+            // Replace template variables
+            let processedContent = content
+                .replace(/\{\{account_id\}\}/g, awsAccountId)
+                .replace(/\{\{environment\}\}/g, envMapping[currentEnv] || currentEnv)
+                .replace(/\{\{region\}\}/g, 'us-east-1')
+                .replace(/\{\{workload_type\}\}/g, 'general')
+                .replace(/\{\{performance_sla\}\}/g, 'standard')
+                .replace(/\{\{selected_agent\}\}/g, selectedAgent);
+            
+            return processedContent;
+        }
+
+        // Initialize template discovery service
+        let templateStructure = {};
+
+        // Initialize template system
+        async function initializeTemplateSystem() {
+            try {
+                console.log('Initializing template system...');
+                templateDiscoveryService = new TemplateDiscoveryService();
+                
+                // Load template structure
+                templateStructure = await templateDiscoveryService.scanTemplateDirectory();
+                console.log('Template structure loaded:', templateStructure);
+                
+                // Update template dropdowns
+                updateTemplateDropdowns();
+                
+            } catch (error) {
+                console.error('Failed to initialize template system:', error);
+                // Fall back to hardcoded templates
+                initializeFallbackTemplates();
+            }
+        }
+
+        // Update template dropdowns with new structure
+        function updateTemplateDropdowns() {
+            const templateContainer = document.getElementById('promptTemplatesContainer');
+            if (!templateContainer) return;
+
+            // Clear existing content
+            templateContainer.innerHTML = '';
+
+            // Update status
+            const statusDot = document.getElementById('templatesStatusDot');
+            const statusText = document.getElementById('templatesStatusText');
+            
+            if (Object.keys(templateStructure).length > 0) {
+                statusDot.classList.add('loaded');
+                statusText.textContent = `${Object.keys(templateStructure).length} categories loaded`;
+            } else {
+                statusDot.classList.add('error');
+                statusText.textContent = 'No templates found';
+                return;
+            }
+
+            // Create container for template controls
+            const controlsContainer = document.createElement('div');
+            controlsContainer.className = 'templates-container';
+            controlsContainer.style.display = 'flex';
+            controlsContainer.style.flexWrap = 'wrap';
+            controlsContainer.style.gap = '10px';
+
+            // Create dropdowns for each category
+            for (const [categoryName, templates] of Object.entries(templateStructure)) {
+                if (categoryName === 'Root') continue; // Skip root templates
+                
+                const categoryContainer = createCategoryDropdown(categoryName, templates);
+                controlsContainer.appendChild(categoryContainer);
+            }
+
+            templateContainer.appendChild(controlsContainer);
+        }
+
+        // Create category dropdown with subcategory support
+        function createCategoryDropdown(categoryName, templates) {
+            const container = document.createElement('div');
+            container.className = 'template-category';
+
+            const button = document.createElement('button');
+            button.className = 'category-btn';
+            button.textContent = categoryName;
+            button.onclick = () => toggleDropdown(container);
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'template-dropdown';
+
+            // Group templates by subcategory
+            const groupedTemplates = groupTemplatesBySubcategory(templates);
+
+            // Add main category templates first
+            if (groupedTemplates.main && groupedTemplates.main.length > 0) {
+                groupedTemplates.main.forEach(template => {
+                    const item = createTemplateItem(template, categoryName);
+                    dropdown.appendChild(item);
+                });
+
+                // Add separator if there are subcategories
+                if (Object.keys(groupedTemplates.subcategories).length > 0) {
+                    const separator = document.createElement('div');
+                    separator.style.borderTop = '1px solid #e0e0e0';
+                    separator.style.margin = '5px 0';
+                    dropdown.appendChild(separator);
+                }
+            }
+
+            // Add subcategories
+            for (const [subcategoryName, subcategoryTemplates] of Object.entries(groupedTemplates.subcategories)) {
+                const submenu = createSubMenu(subcategoryName, subcategoryTemplates, categoryName);
+                dropdown.appendChild(submenu);
+            }
+
+            container.appendChild(button);
+            container.appendChild(dropdown);
+
+            return container;
+        }
+
+        // Group templates by subcategory
+        function groupTemplatesBySubcategory(templates) {
+            const grouped = {
+                main: [],
+                subcategories: {}
+            };
+
+            templates.forEach(template => {
+                if (template.subcategory) {
+                    if (!grouped.subcategories[template.subcategory]) {
+                        grouped.subcategories[template.subcategory] = [];
+                    }
+                    grouped.subcategories[template.subcategory].push(template);
+                } else {
+                    grouped.main.push(template);
+                }
+            });
+
+            return grouped;
+        }
+
+        // Create submenu for subcategory
+        function createSubMenu(subcategoryName, templates, categoryName) {
+            const submenuContainer = document.createElement('div');
+            submenuContainer.className = 'template-submenu-container';
+
+            const submenuHeader = document.createElement('div');
+            submenuHeader.className = 'template-submenu-header';
+            submenuHeader.innerHTML = `
+                <span>${subcategoryName}</span>
+                <span class="submenu-arrow">▼</span>
+            `;
+            submenuHeader.onclick = () => toggleSubMenu(submenuContainer);
+
+            const submenuContent = document.createElement('div');
+            submenuContent.className = 'template-submenu-content';
+            submenuContent.style.display = 'none';
+
+            templates.forEach(template => {
+                const item = createTemplateItem(template, categoryName);
+                submenuContent.appendChild(item);
+            });
+
+            submenuContainer.appendChild(submenuHeader);
+            submenuContainer.appendChild(submenuContent);
+
+            return submenuContainer;
+        }
+
+        // Create individual template item
+        function createTemplateItem(template, categoryName) {
+            const item = document.createElement('div');
+            item.className = 'template-item';
+            item.innerHTML = `
+                <div style="font-weight: 500;">${template.displayName}</div>
+                ${template.description ? `<div style="font-size: 11px; color: #666; margin-top: 2px;">${template.description}</div>` : ''}
+            `;
+            
+            item.onclick = async () => {
+                await loadTemplate(template, categoryName);
+                item.classList.add('clicked');
+                setTimeout(() => item.classList.remove('clicked'), 200);
+                
+                // Close dropdown
+                const dropdown = item.closest('.template-dropdown');
+                if (dropdown) {
+                    dropdown.classList.remove('show');
+                    const button = dropdown.previousElementSibling;
+                    if (button) button.classList.remove('active');
+                }
+            };
+
+            return item;
+        }
+
+        // Load template content
+        async function loadTemplate(template, categoryName) {
+            try {
+                console.log('Loading template:', template);
+                
+                // Show loading state
+                const chatInput = document.getElementById('chatInput');
+                const originalPlaceholder = chatInput.placeholder;
+                chatInput.placeholder = 'Loading template...';
+                chatInput.disabled = true;
+
+                // Load template content
+                let content;
+                if (templateDiscoveryService && template.path) {
+                    content = await templateDiscoveryService.loadTemplateContent(template.path);
+                } else {
+                    // Fallback to hardcoded content
+                    content = generateFallbackTemplate(template.name, categoryName);
+                }
+
+                // Process template variables
+                const processedContent = processTemplateVariables(content);
+
+                // Set the content in the chat input
+                chatInput.value = processedContent;
+                chatInput.placeholder = originalPlaceholder;
+                chatInput.disabled = false;
+                chatInput.focus();
+
+                // Auto-resize the textarea
+                chatInput.style.height = 'auto';
+                chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
+
+            } catch (error) {
+                console.error('Error loading template:', error);
+                
+                // Show error and provide fallback
+                const chatInput = document.getElementById('chatInput');
+                chatInput.value = generateFallbackTemplate(template.name, categoryName);
+                chatInput.placeholder = 'Template loaded (fallback)';
+                chatInput.disabled = false;
+                chatInput.focus();
+            }
+        }
+
+        // Toggle dropdown visibility
+        function toggleDropdown(container) {
+            const dropdown = container.querySelector('.template-dropdown');
+            const button = container.querySelector('.category-btn');
+            
+            // Close other dropdowns
+            document.querySelectorAll('.template-dropdown.show').forEach(other => {
+                if (other !== dropdown) {
+                    other.classList.remove('show');
+                    other.previousElementSibling.classList.remove('active');
+                }
+            });
+
+            // Toggle current dropdown
+            dropdown.classList.toggle('show');
+            button.classList.toggle('active');
+        }
+
+        // Toggle submenu visibility
+        function toggleSubMenu(container) {
+            const content = container.querySelector('.template-submenu-content');
+            const arrow = container.querySelector('.submenu-arrow');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.textContent = '▲';
+            } else {
+                content.style.display = 'none';
+                arrow.textContent = '▼';
+            }
+        }
+
+        // Initialize fallback templates if discovery service fails
+        function initializeFallbackTemplates() {
+            console.log('Using fallback template system');
+            
+            // Use the existing hardcoded categoryPrompts
+            templateStructure = {
+                'Security': [
+                    { name: 'Security Services', displayName: 'Security Services', description: 'Comprehensive security services assessment' },
+                    { name: 'Network Encryption', displayName: 'Network Encryption', description: 'Network encryption and data-in-transit analysis' },
+                    { name: 'Storage Encryption', displayName: 'Storage Encryption', description: 'Storage encryption and data-at-rest analysis' }
+                ],
+                'Cost Optimization': [
+                    { name: 'Savings Plans', displayName: 'Savings Plans', description: 'Savings Plans and Reserved Instance recommendations' },
+                    { name: 'Compute Optimizer', displayName: 'Compute Optimizer', description: 'Compute optimization recommendations and analysis' }
+                ]
+            };
+            
+            updateTemplateDropdowns();
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('.template-category')) {
+                document.querySelectorAll('.template-dropdown.show').forEach(dropdown => {
+                    dropdown.classList.remove('show');
+                    dropdown.previousElementSibling.classList.remove('active');
+                });
+            }
+        });
+
+        // Clean Template Functions Implementation
+        
+        // Create category dropdown with subcategory support
+        function createCategoryDropdown(categoryName, templates) {
+            const container = document.createElement('div');
+            container.className = 'template-category';
+
+            const button = document.createElement('button');
+            button.className = 'category-btn';
+            button.textContent = categoryName;
+            button.onclick = () => toggleDropdown(container);
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'template-dropdown';
+
+            // Group templates by subcategory
+            const groupedTemplates = groupTemplatesBySubcategory(templates);
+
+            // Add main category templates first
+            if (groupedTemplates.main && groupedTemplates.main.length > 0) {
+                groupedTemplates.main.forEach(template => {
+                    const item = createTemplateItem(template, categoryName);
+                    dropdown.appendChild(item);
+                });
+
+                // Add separator if there are subcategories
+                if (Object.keys(groupedTemplates.subcategories).length > 0) {
+                    const separator = document.createElement('div');
+                    separator.style.borderTop = '1px solid #e0e0e0';
+                    separator.style.margin = '5px 0';
+                    dropdown.appendChild(separator);
+                }
+            }
+
+            // Add subcategories with hover sub-menus
+            for (const [subcategoryName, subcategoryTemplates] of Object.entries(groupedTemplates.subcategories)) {
+                const subcategoryItem = createSubcategoryItem(subcategoryName, subcategoryTemplates, categoryName);
+                dropdown.appendChild(subcategoryItem);
+            }
+
+            container.appendChild(button);
+            container.appendChild(dropdown);
+
+            return container;
+        }
+
+        // Group templates by subcategory
+        function groupTemplatesBySubcategory(templates) {
+            const grouped = {
+                main: [],
+                subcategories: {}
+            };
+
+            templates.forEach(template => {
+                if (template.subcategory) {
+                    if (!grouped.subcategories[template.subcategory]) {
+                        grouped.subcategories[template.subcategory] = [];
+                    }
+                    grouped.subcategories[template.subcategory].push(template);
+                } else {
+                    grouped.main.push(template);
+                }
+            });
+
+            return grouped;
+        }
+
+        // Create subcategory item with hover sub-menu
+        function createSubcategoryItem(subcategoryName, templates, categoryName) {
+            const subcategoryContainer = document.createElement('div');
+            subcategoryContainer.className = 'template-subcategory';
+            
+            const subcategoryHeader = document.createElement('div');
+            subcategoryHeader.className = 'template-subcategory-header';
+            subcategoryHeader.innerHTML = `
+                <span class="subcategory-title">${subcategoryName}</span>
+                <span class="subcategory-arrow">▶</span>
+            `;
+            
+            const submenu = document.createElement('div');
+            submenu.className = 'subcategory-submenu';
+            
+            templates.forEach(template => {
+                const item = createTemplateItem(template, categoryName);
+                submenu.appendChild(item);
+            });
+            
+            // Setup hover interactions
+            setupSubcategoryHover(subcategoryContainer, submenu);
+            
+            subcategoryContainer.appendChild(subcategoryHeader);
+            subcategoryContainer.appendChild(submenu);
+            
+            return subcategoryContainer;
+        }
+
+        // Setup hover interactions for subcategories
+        function setupSubcategoryHover(subcategoryElement, submenuElement) {
+            let hoverTimeout;
+            
+            subcategoryElement.addEventListener('mouseenter', () => {
+                clearTimeout(hoverTimeout);
+                submenuElement.classList.add('show');
+                positionSubmenu(submenuElement, subcategoryElement);
+            });
+            
+            subcategoryElement.addEventListener('mouseleave', () => {
+                hoverTimeout = setTimeout(() => {
+                    submenuElement.classList.remove('show');
+                }, 300); // 300ms delay before hiding
+            });
+            
+            submenuElement.addEventListener('mouseenter', () => {
+                clearTimeout(hoverTimeout);
+            });
+            
+            submenuElement.addEventListener('mouseleave', () => {
+                hoverTimeout = setTimeout(() => {
+                    submenuElement.classList.remove('show');
+                }, 300);
+            });
+        }
+
+        // Position submenu relative to subcategory item
+        function positionSubmenu(submenuElement, parentElement) {
+            const parentRect = parentElement.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            // Default position: to the right of parent
+            let left = parentRect.right;
+            let top = parentRect.top;
+            
+            // Check if submenu would go off-screen horizontally
+            const submenuWidth = 200; // Approximate width
+            if (left + submenuWidth > viewportWidth) {
+                // Position to the left instead
+                left = parentRect.left - submenuWidth;
+            }
+            
+            // Check if submenu would go off-screen vertically
+            const submenuHeight = submenuElement.scrollHeight;
+            if (top + submenuHeight > viewportHeight) {
+                // Adjust vertical position
+                top = Math.max(10, viewportHeight - submenuHeight - 10);
+            }
+            
+            submenuElement.style.position = 'fixed';
+            submenuElement.style.left = `${left}px`;
+            submenuElement.style.top = `${top}px`;
+            submenuElement.style.zIndex = '1001';
+        }
+
+        // Create individual template item (clean version)
+        function createTemplateItem(template, categoryName) {
+            const item = document.createElement('div');
+            item.className = 'template-item';
+            item.innerHTML = `
+                <div style="font-weight: 500;">${template.displayName}</div>
+                ${template.description ? `<div style="font-size: 11px; color: #666; margin-top: 2px;">${template.description}</div>` : ''}
+            `;
+            
+            item.onclick = async () => {
+                await loadTemplate(template, categoryName);
+                item.classList.add('clicked');
+                setTimeout(() => item.classList.remove('clicked'), 200);
+                
+                // Close dropdown
+                const dropdown = item.closest('.template-dropdown');
+                if (dropdown) {
+                    dropdown.classList.remove('show');
+                    const button = dropdown.previousElementSibling;
+                    if (button) button.classList.remove('active');
+                }
+                
+                // Close submenu
+                const submenu = item.closest('.subcategory-submenu');
+                if (submenu) {
+                    submenu.classList.remove('show');
+                }
+            };
+
+            return item;
+        }
+
+        // Load template content (clean version)
+        async function loadTemplate(template, categoryName) {
+            try {
+                console.log('Loading template:', template);
+                
+                // Show user message with template selection
+                let templateMessage = `📋 ${template.displayName}`;
+                if (template.subcategory) {
+                    templateMessage += ` (${categoryName} → ${template.subcategory})`;
+                } else {
+                    templateMessage += ` (${categoryName})`;
+                }
+                
+                // Add agent targeting info
+                if (selectedAgent !== 'auto' && availableAgents[selectedAgent]) {
+                    const agentName = formatAgentName(selectedAgent);
+                    const agentStatus = availableAgents[selectedAgent].status === 'HEALTHY' ? '✅' : '⚠️';
+                    templateMessage += ` <span style="font-size: 0.8em; color: #666; font-style: italic;">→ ${agentStatus} ${agentName} (Manual)</span>`;
+                } else {
+                    templateMessage += ` <span style="font-size: 0.8em; color: #666; font-style: italic;">→ �🤖 Auto-Select</span>`;
+                }
+                
+                addMessage('user', templateMessage);
+                addMessage('assistant', '🤔 Processing template...');
+
+                // Load template content
+                let content;
+                if (templateDiscoveryService && template.path) {
+                    content = await templateDiscoveryService.loadTemplateContent(template.path);
+                } else {
+                    // Fallback to hardcoded content
+                    content = generateFallbackTemplate(template.name || template.displayName, categoryName);
+                }
+
+                // Process template variables
+                const processedContent = processTemplateVariables(content);
+
+                // Send to backend
+                await sendTemplateToBackend(processedContent, template.displayName, categoryName);
+
+            } catch (error) {
+                console.error('Error loading template:', error);
+                updateLastAssistantMessage(`❌ **Error processing template:** ${template.displayName}\n\n${error.message}`);
+            }
+        }
+
+        // Toggle dropdown visibility (clean version)
+        function toggleDropdown(container) {
+            const dropdown = container.querySelector('.template-dropdown');
+            const button = container.querySelector('.category-btn');
+            
+            // Close other dropdowns
+            document.querySelectorAll('.template-dropdown.show').forEach(other => {
+                if (other !== dropdown) {
+                    other.classList.remove('show');
+                    other.previousElementSibling.classList.remove('active');
+                }
+            });
+
+            // Toggle current dropdown
+            dropdown.classList.toggle('show');
+            button.classList.toggle('active');
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeTemplateSystem();
+        });
+
+        // Debug function - you can call this from browser console
+        window.debugTemplates = async function() {
+            console.log('=== TEMPLATE DEBUG START ===');
+            
+            try {
+                // Test direct access to index.json
+                console.log('1. Testing direct access to index.json...');
+                const indexUrl = './prompt-templates/index.json';
+                const response = await fetch(indexUrl);
+                console.log('Index.json response status:', response.status, response.statusText);
+                
+                if (response.ok) {
+                    const indexData = await response.json();
+                    console.log('2. Index.json content:', indexData);
+                    console.log('3. Categories found:', Object.keys(indexData.categories || {}));
+                    
+                    // Test template discovery service
+                    console.log('4. Testing template discovery service...');
+                    if (templateDiscoveryService) {
+                        const structure = await templateDiscoveryService.scanTemplateDirectory();
+                        console.log('5. Template discovery result:', structure);
+                    } else {
+                        console.log('5. Template discovery service not initialized');
+                    }
+                } else {
+                    console.log('2. Failed to load index.json');
+                }
+                
+                // Check current promptTemplates state
+                console.log('6. Current promptTemplates:', promptTemplates);
+                
+            } catch (error) {
+                console.error('Debug error:', error);
+            }
+            
+            console.log('=== TEMPLATE DEBUG END ===');
+        };
+
+        // Cache clearing function - you can call this from browser console
+        window.clearTemplateCache = async function() {
+            console.log('🧹 Clearing template cache...');
+            
+            if (templateDiscoveryService) {
+                await templateDiscoveryService.forceRefresh();
+                console.log('✅ Template cache cleared and refreshed');
+                
+                // Reload templates in UI
+                setTimeout(() => {
+                    loadPromptTemplatesAutomatically();
+                }, 500);
+            } else {
+                console.log('❌ Template discovery service not available');
+            }
+        };
+
+        // Debug function to check current configuration
+        window.debugConfig = function() {
+            console.log('=== CONFIGURATION DEBUG ===');
+            console.log('API_BASE_URL:', API_BASE_URL);
+            console.log('DEPLOYED_CONFIG:', DEPLOYED_CONFIG);
+            console.log('Current environment:', document.getElementById('environmentSelect').value);
+            console.log('Is connected:', isConnected);
+            console.log('Available agents:', Object.keys(availableAgents));
+            console.log('Selected agent:', selectedAgent);
+            console.log('=== END DEBUG ===');
+        };
+    </script>
+</body>
+
+</html>
