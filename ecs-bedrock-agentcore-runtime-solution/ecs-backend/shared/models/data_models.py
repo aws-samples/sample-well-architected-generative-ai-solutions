@@ -4,7 +4,7 @@ Centralizes imports from actual model locations for backward compatibility.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from agentcore.models.agentcore_models import AgentInfo, CommandResponse
 from shared.models.chat_models import ChatMessage, ChatSession, ToolExecution

@@ -99,7 +99,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 RUN python -c "import os; assert os.getenv('BACKEND_MODE') == 'agentcore', 'Invalid backend mode for AgentCore'"
 
 # Run AgentCore application with graceful degradation
-CMD ["python", "-c", "from main import get_backend_mode, create_app; mode = get_backend_mode(); print(f'Starting COA Backend in {mode} mode'); app = create_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8000, workers=1)"]
+CMD ["python", "-c", "from main import create_app; print('Starting COA Backend in agentcore mode'); app = create_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8000, workers=1)"]
 
 # Metadata labels
 LABEL maintainer="AWS Cloud Optimization Assistant Team" \
