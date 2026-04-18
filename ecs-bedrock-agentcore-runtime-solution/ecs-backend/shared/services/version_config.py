@@ -56,6 +56,16 @@ class VersionConfigService:
             "recommendations": recommendations,
         }
 
+    def get_version_summary(self) -> Dict[str, Any]:
+        """Get a summary of version configuration and validation status."""
+        config = self.get_version_config()
+        validation = self.validate_version_constraints()
+        return {
+            **self.version_info,
+            "config": config,
+            "validation": validation,
+        }
+
     def get_feature_flags(self) -> Dict[str, bool]:
         return self.get_version_config()["features"]
 
