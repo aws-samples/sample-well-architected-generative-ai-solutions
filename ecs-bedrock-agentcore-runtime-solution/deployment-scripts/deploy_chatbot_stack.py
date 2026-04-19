@@ -56,7 +56,7 @@ class ChatbotStackDeployer:
             region: AWS region
             environment: Environment (dev, staging, prod)
             profile: AWS CLI profile name (optional)
-            template_version: CloudFormation template version (0.1.0, 0.1.2, or 0.1.3)
+            template_version: CloudFormation template version
         """
         self.stack_name = stack_name
         self.region = region
@@ -422,7 +422,7 @@ def main():
     parser.add_argument(
         "--template-version",
         default="0.1.4",
-        choices=["0.1.0", "0.1.2", "0.1.3", "0.1.4"],
+        choices=["0.1.4"],
         help="CloudFormation template version to use",
     )
 

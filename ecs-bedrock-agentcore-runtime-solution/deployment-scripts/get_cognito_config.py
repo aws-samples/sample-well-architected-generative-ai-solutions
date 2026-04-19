@@ -133,7 +133,7 @@ def main():
             print("❌ No Cognito configuration found in Parameter Store")
             print("Make sure to deploy the shared Cognito infrastructure first:")
             print(
-                "  python deployment-scripts/deploy_shared_cognito.py --create-test-user"
+                "  python deployment-scripts/deploy_chatbot_stack.py --stack-name coa --region us-east-1"
             )
             sys.exit(1)
 

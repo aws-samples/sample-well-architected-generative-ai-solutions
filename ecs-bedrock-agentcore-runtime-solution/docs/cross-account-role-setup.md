@@ -293,7 +293,7 @@ aws s3 cp generated-templates/remote-role-stack/remote-role-crossaccountmcprole-
 
 ### Step 3: Update Frontend HTML
 
-Edit `cloud-optimization-web-interfaces/cloud-optimization-web-interface/frontend/index.html`:
+Edit `frontend/index.html`:
 
 1. **Locate the deployment link** (around line 588):
 ```html
@@ -331,8 +331,8 @@ python3 deployment-scripts/deploy_frontend.py \
 # Verify MCP deployment completed
 aws ssm get-parameters-by-path --path /coa/components/wa_security_mcp/ --recursive
 
-# If missing, redeploy the MCP server
-python3 deployment-scripts/components/deploy_component_wa_security_mcp.py --region us-east-1
+# If missing, redeploy the stack
+python3 deployment-scripts/deploy_chatbot_stack.py --region us-east-1
 ```
 
 #### 2. Invalid Role ARN Format
