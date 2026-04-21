@@ -117,10 +117,12 @@ class EnhancedSecurityAgentV2Deployer:
         region: str = "us-east-1",
         agent_name: str = "wa-security-agent",
         environment: str = "production",
+        ssm_prefix: str = "coa",
     ):
         self.region = region
         self.account_id = boto3.client("sts").get_caller_identity()["Account"]
         self.environment = Environment(environment.lower())
+        self.ssm_prefix = ssm_prefix
 
         # Initialize AWS clients
         self.bedrock_agent = boto3.client("bedrock-agent", region_name=region)
@@ -168,8 +170,8 @@ class EnhancedSecurityAgentV2Deployer:
                     "enhanced_error_handling": True,
                 },
                 region_specific={
-                    "parameter_prefix": "/coa/mcp/wa_security_mcp",
-                    "secret_name": "/coa/mcp/wa_security_mcp/cognito/credentials",
+                    "parameter_prefix": f"/{self.ssm_prefix}/mcp/wa_security_mcp",
+                    "secret_name": f"/{self.ssm_prefix}/mcp/wa_security_mcp/cognito/credentials",
                 },
             ),
             "aws_knowledge": MCPServerConfig(
@@ -566,17 +568,17 @@ Remember: You're not just a security assessment tool - you're a comprehensive AW
 
         # Basic agent parameters
         parameters = {
-            f"/coa/agent/{self.agent_name}/agent-id": agent_id,
-            f"/coa/agent/{self.agent_name}/alias-id": alias_id,
-            f"/coa/agent/{self.agent_name}/region": self.region,
-            f"/coa/agent/{self.agent_name}/version": "2.0",
-            f"/coa/agent/{self.agent_name}/environment": self.environment.value,
+            f"/{self.ssm_prefix}/agent/{self.agent_name}/agent-id": agent_id,
+            f"/{self.ssm_prefix}/agent/{self.agent_name}/alias-id": alias_id,
+            f"/{self.ssm_prefix}/agent/{self.agent_name}/region": self.region,
+            f"/{self.ssm_prefix}/agent/{self.agent_name}/version": "2.0",
+            f"/{self.ssm_prefix}/agent/{self.agent_name}/environment": self.environment.value,
         }
 
         # Store MCP configurations
         for mcp_name, config in self.mcp_configs.items():
             config_dict = self._config_to_dict(config)
-            parameters[f"/coa/agent/{self.agent_name}/mcp/{mcp_name}/config"] = (
+            parameters[f"/{self.ssm_prefix}/agent/{self.agent_name}/mcp/{mcp_name}/config"] = (
                 json.dumps(config_dict)
             )
 
@@ -592,7 +594,7 @@ Remember: You're not just a security assessment tool - you're a comprehensive AW
             "knowledge_integration": True,
             "api_integration": True,
         }
-        parameters[f"/coa/agent/{self.agent_name}/feature_flags"] = json.dumps(
+        parameters[f"/{self.ssm_prefix}/agent/{self.agent_name}/feature_flags"] = json.dumps(
             feature_flags
         )
 
@@ -609,7 +611,7 @@ Remember: You're not just a security assessment tool - you're a comprehensive AW
                 "enhanced_reporting",
             ],
         }
-        parameters[f"/coa/agent/{self.agent_name}/deployment_metadata"] = json.dumps(
+        parameters[f"/{self.ssm_prefix}/agent/{self.agent_name}/deployment_metadata"] = json.dumps(
             deployment_metadata
         )
 
@@ -787,7 +789,7 @@ Remember: You're not just a security assessment tool - you're a comprehensive AW
             # Store in Parameter Store (if small enough) or log location
             if len(zip_data) < 4096:  # Parameter Store limit
                 self.ssm.put_parameter(
-                    Name=f"/coa/agent/{self.agent_name}/config_archive",
+                    Name=f"/{self.ssm_prefix}/agent/{self.agent_name}/config_archive",
                     Value=zip_data,
                     Type="String",
                     Overwrite=True,
@@ -927,11 +929,16 @@ def main():
     parser.add_argument(
         "--show-config", action="store_true", help="Show MCP configurations and exit"
     )
+    parser.add_argument(
+        "--ssm-prefix", default="coa",
+        help="SSM Parameter Store prefix (e.g. coa, coa-zx0)",
+    )
 
     args = parser.parse_args()
 
     deployer = EnhancedSecurityAgentV2Deployer(
-        region=args.region, agent_name=args.agent_name, environment=args.environment
+        region=args.region, agent_name=args.agent_name, environment=args.environment,
+        ssm_prefix=args.ssm_prefix,
     )
 
     if args.show_config:

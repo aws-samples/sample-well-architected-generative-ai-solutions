@@ -143,6 +143,12 @@ fastapi>=0.100.0
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Deploy WA Security MCP Server")
+    parser.add_argument("--ssm-prefix", default="coa", help="SSM Parameter Store prefix")
+    args = parser.parse_args()
+    ssm_prefix = args.ssm_prefix
+
     print("🚀 Starting Well-Architected Security MCP Server Deployment")
     print("Using Shared Cognito User Pool")
     print("=" * 60)
@@ -171,7 +177,7 @@ def main():
     print("\n📋 Getting shared Cognito configuration from Parameter Store...")
     try:
         cognito_client = get_shared_cognito_client(
-            region=region, use_parameter_store=True
+            region=region, use_parameter_store=True, ssm_prefix=ssm_prefix
         )
 
         # Get authentication configuration for AgentCore
@@ -254,7 +260,7 @@ def main():
 
         # Store Agent ARN in component-specific path
         ssm_client.put_parameter(
-            Name="/coa/components/wa_security_mcp/agent_arn",
+            Name=f"/{ssm_prefix}/components/wa_security_mcp/agent_arn",
             Value=launch_result.agent_arn,
             Type="String",
             Description="Agent ARN for WA Security MCP server",
@@ -262,7 +268,7 @@ def main():
         )
 
         ssm_client.put_parameter(
-            Name="/coa/components/wa_security_mcp/agent_id",
+            Name=f"/{ssm_prefix}/components/wa_security_mcp/agent_id",
             Value=launch_result.agent_id,
             Type="String",
             Description="Agent ID for WA Security MCP server",
@@ -271,7 +277,7 @@ def main():
 
         # Store additional metadata
         ssm_client.put_parameter(
-            Name="/coa/components/wa_security_mcp/deployment_type",
+            Name=f"/{ssm_prefix}/components/wa_security_mcp/deployment_type",
             Value="custom_build",
             Type="String",
             Description="Deployment type for WA Security MCP server",
@@ -279,7 +285,7 @@ def main():
         )
 
         ssm_client.put_parameter(
-            Name="/coa/components/wa_security_mcp/region",
+            Name=f"/{ssm_prefix}/components/wa_security_mcp/region",
             Value=region,
             Type="String",
             Description="AWS region for WA Security MCP server",
@@ -298,7 +304,7 @@ def main():
         }
 
         ssm_client.put_parameter(
-            Name="/coa/components/wa_security_mcp/connection_info",
+            Name=f"/{ssm_prefix}/components/wa_security_mcp/connection_info",
             Value=json.dumps(connection_info, indent=2),
             Type="String",
             Description="Complete connection information for WA Security MCP server",

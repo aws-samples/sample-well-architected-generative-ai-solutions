@@ -37,6 +37,7 @@ class SharedCognitoClient:
         region: str = "us-east-1",
         shared_stack_name: str = "cloud-optimization-shared-cognito",
         use_parameter_store: bool = True,
+        ssm_prefix: str = "coa",
     ):
         """
         Initialize the shared Cognito client
@@ -45,10 +46,12 @@ class SharedCognitoClient:
             region: AWS region
             shared_stack_name: Name of the shared Cognito CloudFormation stack (fallback)
             use_parameter_store: Whether to use Parameter Store for configuration (default: True)
+            ssm_prefix: SSM Parameter Store prefix (e.g. coa, coa-zx0)
         """
         self.region = region
         self.shared_stack_name = shared_stack_name
         self.use_parameter_store = use_parameter_store
+        self.ssm_prefix = ssm_prefix
 
         self.cf_client = boto3.client("cloudformation", region_name=region)
         self.cognito_client = boto3.client("cognito-idp", region_name=region)
@@ -79,47 +82,29 @@ class SharedCognitoClient:
 
     def _get_config_from_parameter_store(self) -> Dict[str, str]:
         """Get configuration from Parameter Store using standardized paths"""
-        parameter_names = [
-            "/coa/cognito/user_pool_id",
-            "/coa/cognito/web_app_client_id",
-            "/coa/cognito/api_client_id",
-            "/coa/cognito/mcp_server_client_id",
-            "/coa/cognito/identity_pool_id",
-            "/coa/cognito/user_pool_domain",
-            "/coa/cognito/discovery_url",
-            "/coa/cognito/region",
-            "/coa/cognito/user_pool_arn",
-        ]
+        p = self.ssm_prefix
+        param_key_map = {
+            f"/{p}/cognito/user_pool_id": "UserPoolId",
+            f"/{p}/cognito/web_app_client_id": "WebAppClientId",
+            f"/{p}/cognito/api_client_id": "APIClientId",
+            f"/{p}/cognito/mcp_server_client_id": "MCPServerClientId",
+            f"/{p}/cognito/identity_pool_id": "IdentityPoolId",
+            f"/{p}/cognito/user_pool_domain": "UserPoolDomain",
+            f"/{p}/cognito/discovery_url": "DiscoveryUrl",
+            f"/{p}/cognito/region": "Region",
+            f"/{p}/cognito/user_pool_arn": "UserPoolArn",
+        }
 
         try:
             response = self.ssm_client.get_parameters(
-                Names=parameter_names, WithDecryption=False
+                Names=list(param_key_map.keys()), WithDecryption=False
             )
 
             config = {}
             for param in response["Parameters"]:
-                name = param["Name"]
-                value = param["Value"]
-
-                # Map parameter names to output keys
-                if name == "/coa/cognito/user_pool_id":
-                    config["UserPoolId"] = value
-                elif name == "/coa/cognito/web_app_client_id":
-                    config["WebAppClientId"] = value
-                elif name == "/coa/cognito/api_client_id":
-                    config["APIClientId"] = value
-                elif name == "/coa/cognito/mcp_server_client_id":
-                    config["MCPServerClientId"] = value
-                elif name == "/coa/cognito/identity_pool_id":
-                    config["IdentityPoolId"] = value
-                elif name == "/coa/cognito/user_pool_domain":
-                    config["UserPoolDomain"] = value
-                elif name == "/coa/cognito/discovery_url":
-                    config["DiscoveryUrl"] = value
-                elif name == "/coa/cognito/region":
-                    config["Region"] = value
-                elif name == "/coa/cognito/user_pool_arn":
-                    config["UserPoolArn"] = value
+                key = param_key_map.get(param["Name"])
+                if key:
+                    config[key] = param["Value"]
 
             # Check if we got all required parameters
             required_keys = [
@@ -386,6 +371,7 @@ def get_shared_cognito_client(
     region: str = "us-east-1",
     shared_stack_name: str = "cloud-optimization-shared-cognito",
     use_parameter_store: bool = True,
+    ssm_prefix: str = "coa",
 ) -> SharedCognitoClient:
     """
     Factory function to get a shared Cognito client
@@ -394,6 +380,7 @@ def get_shared_cognito_client(
         region: AWS region
         shared_stack_name: Name of the shared Cognito stack (fallback)
         use_parameter_store: Whether to use Parameter Store for configuration
+        ssm_prefix: SSM Parameter Store prefix (e.g. coa, coa-zx0)
 
     Returns:
         SharedCognitoClient instance
@@ -402,6 +389,7 @@ def get_shared_cognito_client(
         region=region,
         shared_stack_name=shared_stack_name,
         use_parameter_store=use_parameter_store,
+        ssm_prefix=ssm_prefix,
     )
 
 

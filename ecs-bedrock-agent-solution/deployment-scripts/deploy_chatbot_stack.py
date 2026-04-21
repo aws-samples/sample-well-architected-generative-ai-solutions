@@ -46,6 +46,7 @@ class ChatbotStackDeployer:
         region: str = "us-east-1",
         environment: str = "prod",
         profile: Optional[str] = None,
+        ssm_prefix: str = "coa",
     ):
         """
         Initialize the chatbot stack deployer
@@ -55,11 +56,13 @@ class ChatbotStackDeployer:
             region: AWS region
             environment: Environment (dev, staging, prod)
             profile: AWS CLI profile name (optional)
+            ssm_prefix: SSM Parameter Store prefix (e.g. coa, coa-zx0)
         """
         self.stack_name = stack_name
         self.region = region
         self.environment = environment
         self.profile = profile
+        self.ssm_prefix = ssm_prefix
 
         # Create session with profile if specified
         if profile:
@@ -207,6 +210,7 @@ class ChatbotStackDeployer:
         parameters = [
             {"ParameterKey": "Environment", "ParameterValue": self.environment},
             {"ParameterKey": "SourceBucket", "ParameterValue": actual_source_bucket},
+            {"ParameterKey": "SsmPrefix", "ParameterValue": self.ssm_prefix},
         ]
 
         logger.info(f"Deploying stack: {self.stack_name}")
@@ -359,6 +363,11 @@ def main():
         help="Environment name",
     )
     parser.add_argument("--profile", help="AWS CLI profile name")
+    parser.add_argument(
+        "--ssm-prefix",
+        default="coa",
+        help="SSM Parameter Store prefix (e.g. coa, coa-zx0)",
+    )
 
     args = parser.parse_args()
 
@@ -368,6 +377,7 @@ def main():
             region=args.region,
             environment=args.environment,
             profile=args.profile,
+            ssm_prefix=args.ssm_prefix,
         )
 
         result = deployer.deploy()

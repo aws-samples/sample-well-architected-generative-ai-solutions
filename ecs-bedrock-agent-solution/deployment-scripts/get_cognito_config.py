@@ -29,29 +29,25 @@ from typing import Any, Dict
 import boto3
 
 
-def get_cognito_config_from_parameters(region: str = "us-east-1") -> Dict[str, Any]:
+def get_cognito_config_from_parameters(region: str = "us-east-1", ssm_prefix: str = "coa") -> Dict[str, Any]:
     """
     Get Cognito configuration from Parameter Store using standardized paths
 
     Args:
         region: AWS region
+        ssm_prefix: SSM Parameter Store prefix (e.g. coa, coa-zx0)
 
     Returns:
         Dictionary with Cognito configuration
     """
     ssm_client = boto3.client("ssm", region_name=region)
 
-    parameter_names = [
-        "/coa/cognito/user_pool_id",
-        "/coa/cognito/web_app_client_id",
-        "/coa/cognito/api_client_id",
-        "/coa/cognito/mcp_server_client_id",
-        "/coa/cognito/identity_pool_id",
-        "/coa/cognito/user_pool_domain",
-        "/coa/cognito/discovery_url",
-        "/coa/cognito/region",
-        "/coa/cognito/user_pool_arn",
+    cognito_keys = [
+        "user_pool_id", "web_app_client_id", "api_client_id",
+        "mcp_server_client_id", "identity_pool_id", "user_pool_domain",
+        "discovery_url", "region", "user_pool_arn",
     ]
+    parameter_names = [f"/{ssm_prefix}/cognito/{k}" for k in cognito_keys]
 
     try:
         response = ssm_client.get_parameters(
@@ -59,13 +55,10 @@ def get_cognito_config_from_parameters(region: str = "us-east-1") -> Dict[str, A
         )
 
         config = {}
+        prefix = f"/{ssm_prefix}/cognito/"
         for param in response["Parameters"]:
-            name = param["Name"]
-            value = param["Value"]
-
-            # Use the parameter name as the key (without the prefix)
-            key = name.replace("/coa/cognito/", "")
-            config[key] = value
+            key = param["Name"].replace(prefix, "")
+            config[key] = param["Value"]
 
         # Check for missing parameters
         missing_params = response.get("InvalidParameters", [])
@@ -123,11 +116,15 @@ def main():
     parser.add_argument(
         "--parameter", help="Get specific parameter (e.g., user_pool_id)"
     )
+    parser.add_argument(
+        "--ssm-prefix", default="coa",
+        help="SSM Parameter Store prefix (e.g. coa, coa-zx0)",
+    )
 
     args = parser.parse_args()
 
     try:
-        config = get_cognito_config_from_parameters(args.region)
+        config = get_cognito_config_from_parameters(args.region, ssm_prefix=args.ssm_prefix)
 
         if not config:
             print("❌ No Cognito configuration found in Parameter Store")
