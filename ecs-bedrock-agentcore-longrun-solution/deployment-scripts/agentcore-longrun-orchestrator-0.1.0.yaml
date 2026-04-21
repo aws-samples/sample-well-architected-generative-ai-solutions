@@ -16,16 +16,6 @@ Parameters:
   BedrockRegion:
     Type: String
     Default: us-west-2
-  DemoMaskOutput:
-    Type: String
-    Default: 'false'
-    AllowedValues: ['true', 'false']
-    Description: Enable output masking of resource IDs and names (for demo/sandbox)
-  DemoReadOnly:
-    Type: String
-    Default: 'false'
-    AllowedValues: ['true', 'false']
-    Description: Restrict agent to read-only operations (for demo/sandbox)
 
 Resources:
   # Cognito
@@ -198,10 +188,6 @@ Resources:
               Value: !Ref BedrockRegion
             - Name: AGENTCORE_REGION
               Value: !Ref BedrockRegion
-            - Name: DEMO_MASK_OUTPUT
-              Value: !Ref DemoMaskOutput
-            - Name: DEMO_READ_ONLY
-              Value: !Ref DemoReadOnly
           LogConfiguration:
             LogDriver: awslogs
             Options:

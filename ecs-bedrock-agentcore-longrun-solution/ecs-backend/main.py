@@ -26,7 +26,7 @@ except Exception as e:
 
     @app.get("/health")
     async def health():
-        return {"status": "unhealthy", "error": "initialization_failed"}
+        return {"status": "unhealthy", "error": str(e)}
 
 
 if __name__ == "__main__":
