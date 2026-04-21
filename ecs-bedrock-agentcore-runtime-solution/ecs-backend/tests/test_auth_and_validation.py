@@ -11,12 +11,8 @@ class TestAuthService:
 
     def test_init(self):
         from shared.services.auth_service import AuthService
-        with patch("shared.services.auth_service.AuthService._initialize", return_value=None):
-            try:
-                svc = AuthService.__new__(AuthService)
-                assert svc is not None
-            except Exception:
-                pass  # Complex init may fail without AWS
+        svc = AuthService()
+        assert svc is not None
 
 
 class TestConfigValidationService:
