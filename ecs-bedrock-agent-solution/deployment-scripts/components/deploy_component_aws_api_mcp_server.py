@@ -134,6 +134,12 @@ CMD ["python", "server.py"]
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Deploy AWS API MCP Server")
+    parser.add_argument("--ssm-prefix", default="coa", help="SSM Parameter Store prefix")
+    args = parser.parse_args()
+    ssm_prefix = args.ssm_prefix
+
     print("🚀 Starting AWS API MCP Server Deployment")
     print("Using Shared Cognito User Pool")
     print("=" * 60)
@@ -162,7 +168,7 @@ def main():
     print("\n📋 Getting shared Cognito configuration from Parameter Store...")
     try:
         cognito_client = get_shared_cognito_client(
-            region=region, use_parameter_store=True
+            region=region, use_parameter_store=True, ssm_prefix=ssm_prefix
         )
 
         # Get authentication configuration for AgentCore
@@ -177,7 +183,7 @@ def main():
         print("Make sure the shared Cognito infrastructure is deployed first:")
         print("  python deployment-scripts/deploy_shared_cognito.py --create-test-user")
         print(
-            "This will create the required parameters in Parameter Store at /coa/cognito/*"
+            "This will create the required parameters in Parameter Store at /{ssm_prefix}/cognito/*"
         )
         sys.exit(1)
 
@@ -244,7 +250,7 @@ def main():
 
         # Store Agent ARN in component-specific path
         ssm_client.put_parameter(
-            Name="/coa/components/aws_api_mcp/agent_arn",
+            Name=f"/{ssm_prefix}/components/aws_api_mcp/agent_arn",
             Value=launch_result.agent_arn,
             Type="String",
             Description="Agent ARN for AWS API MCP server",
@@ -252,7 +258,7 @@ def main():
         )
 
         ssm_client.put_parameter(
-            Name="/coa/components/aws_api_mcp/agent_id",
+            Name=f"/{ssm_prefix}/components/aws_api_mcp/agent_id",
             Value=launch_result.agent_id,
             Type="String",
             Description="Agent ID for AWS API MCP server",
@@ -261,7 +267,7 @@ def main():
 
         # Store additional metadata
         # ssm_client.put_parameter(
-        #     Name='/coa/components/aws_api_mcp/package_name',
+        #     Name=f'/{ssm_prefix}/components/aws_api_mcp/package_name',
         #     Value='awslabs.aws-api-mcp-server',
         #     Type='String',
         #     Description='Package name for AWS API MCP server',
@@ -269,7 +275,7 @@ def main():
         # )
 
         # ssm_client.put_parameter(
-        #     Name='/coa/components/aws_api_mcp/deployment_type',
+        #     Name=f'/{ssm_prefix}/components/aws_api_mcp/deployment_type',
         #     Value='public_package',
         #     Type='String',
         #     Description='Deployment type for AWS API MCP server',
@@ -277,7 +283,7 @@ def main():
         # )
 
         # ssm_client.put_parameter(
-        #     Name='/coa/components/aws_api_mcp/region',
+        #     Name=f'/{ssm_prefix}/components/aws_api_mcp/region',
         #     Value=region,
         #     Type='String',
         #     Description='AWS region for AWS API MCP server',
@@ -296,7 +302,7 @@ def main():
         }
 
         ssm_client.put_parameter(
-            Name="/coa/components/aws_api_mcp/connection_info",
+            Name=f"/{ssm_prefix}/components/aws_api_mcp/connection_info",
             Value=json.dumps(connection_info, indent=2),
             Type="String",
             Description="Complete connection information for AWS API MCP server",
@@ -304,9 +310,9 @@ def main():
         )
 
         print("✓ Component configuration stored in Parameter Store")
-        print("  Agent ARN: /coa/components/aws_api_mcp/agent_arn")
-        print("  Agent ID: /coa/components/aws_api_mcp/agent_id")
-        print("  Connection Info: /coa/components/aws_api_mcp/connection_info")
+        print(f"  Agent ARN: /{ssm_prefix}/components/aws_api_mcp/agent_arn")
+        print(f"  Agent ID: /{ssm_prefix}/components/aws_api_mcp/agent_id")
+        print(f"  Connection Info: /{ssm_prefix}/components/aws_api_mcp/connection_info")
 
     except Exception as e:
         print(f"❌ Failed to store configuration: {e}")
@@ -323,7 +329,7 @@ def main():
     print("Deployment Type: public_package")
     print("\nThe AWS API MCP Server is now deployed and ready!")
     print("It uses the shared Cognito user pool for authentication.")
-    print("Configuration stored in Parameter Store under /coa/components/aws_api_mcp/*")
+    print(f"Configuration stored in Parameter Store under /{ssm_prefix}/components/aws_api_mcp/*")
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ from agentcore.models.strands_models import (
     StrandsAgent, StrandsDiscoveryStats, StrandsAgentStatus
 )
 from agentcore.models.agentcore_interfaces import AgentDiscoveryInterface
+from agentcore.models.agentcore_models import AgentInfo, AgentRuntimeType, AgentDiscoveryStatus, DiscoveryStats
 from shared.models.exceptions import AgentDiscoveryError, SSMParameterError
 
 logger = logging.getLogger(__name__)

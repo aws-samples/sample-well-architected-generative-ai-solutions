@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 class ConfigService:
-    def __init__(self, ssm_prefix: str = "/coa/"):
-        self.ssm_prefix = ssm_prefix
+    def __init__(self, ssm_prefix: str = None):
+        self.ssm_prefix = ssm_prefix or os.environ.get("SSM_PREFIX", "/coa")
         self._ssm_client = None
         self._config_cache = {}
         self._ssm_available = None
@@ -154,9 +154,9 @@ class ConfigService:
             return None
 
         if key == "ENHANCED_SECURITY_AGENT_ID":
-            parameter_name = "/coa/agent/wa-security-agent/agent-id"
+            parameter_name = f"{self.ssm_prefix}/agent/wa-security-agent/agent-id"
         elif key == "ENHANCED_SECURITY_AGENT_ALIAS_ID":
-            parameter_name = "/coa/agent/wa-security-agent/alias-id"
+            parameter_name = f"{self.ssm_prefix}/agent/wa-security-agent/alias-id"
         else:
             return None
 

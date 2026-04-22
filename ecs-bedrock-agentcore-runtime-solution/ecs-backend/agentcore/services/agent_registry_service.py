@@ -9,6 +9,7 @@ from typing import Dict, Optional
 
 from agentcore.models.strands_models import StrandsAgent, StrandsRegistryStats, StrandsAgentStatus
 from agentcore.models.agentcore_interfaces import AgentRegistryInterface
+from agentcore.models.agentcore_models import AgentInfo, RegistryStats
 from shared.models.exceptions import AgentRegistryError
 
 logger = logging.getLogger(__name__)

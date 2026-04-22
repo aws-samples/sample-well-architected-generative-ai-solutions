@@ -25,6 +25,7 @@ Combines Claude 3.7 Sonnet with:
 import asyncio
 import json
 import logging
+import os
 from datetime import timedelta
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
@@ -113,13 +114,13 @@ class EnhancedSecurityAgent(Agent):
 
             # Get AgentCore Runtime (WA SEC MCP Server)
             agent_arn_response = ssm_client.get_parameter(
-                Name="/coa/mcp/wa_security_mcp/runtime/agent_arn"
+                Name=os.environ.get("SSM_PREFIX", "/coa") + "/mcp/wa_security_mcp/runtime/agent_arn"
             )
             agent_arn = agent_arn_response["Parameter"]["Value"]
 
             # Get bearer token
             response = secrets_client.get_secret_value(
-                SecretId="/coa/mcp/wa_security_mcp/cognito/credentials"
+                SecretId=os.environ.get("SSM_PREFIX", "/coa") + "/mcp/wa_security_mcp/cognito/credentials"
             )
             secret_value = response["SecretString"]
             parsed_secret = json.loads(secret_value)

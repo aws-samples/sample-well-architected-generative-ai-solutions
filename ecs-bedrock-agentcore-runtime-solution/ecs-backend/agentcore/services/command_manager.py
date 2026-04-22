@@ -11,6 +11,7 @@ from agentcore.models.strands_models import StrandsAgentResponse
 from agentcore.models.agentcore_interfaces import (
     CommandManagerInterface, AgentRegistryInterface, AgentDiscoveryInterface
 )
+from agentcore.models.agentcore_models import CommandResponse
 from shared.models.exceptions import CommandProcessingError
 from shared.utils.parameter_manager import get_parameter_manager, ParameterManagerError
 
@@ -791,53 +792,34 @@ Examples:
             if agentcore_enabled:
                 enabled_runtimes.append("agentcore")
                 
-                # Format runtime information
-                runtime_info = {
-                    "bedrock_agent": {
-                        "enabled": config.bedrock_agent_enabled,
-                        "status": "enabled" if config.bedrock_agent_enabled else "disabled"
-                    },
-                    "agentcore_runtime": {
-                        "enabled": config.agentcore_enabled,
-                        "status": "enabled" if config.agentcore_enabled else "disabled"
-                    }
+            # Format runtime information
+            runtime_info = {
+                "agentcore_runtime": {
+                    "enabled": agentcore_enabled,
+                    "status": "enabled" if agentcore_enabled else "disabled"
                 }
-                
-                # Configuration details
-                configuration = {
-                    "priority_runtime": config.priority_runtime.value,
-                    "fallback_enabled": config.fallback_enabled,
-                    "keyword_analysis_enabled": config.keyword_analysis_enabled,
-                    "health_check_interval": config.health_check_interval
-                }
-                
-                # Create summary message
-                enabled_count = len(enabled_runtimes)
-                if enabled_count == 0:
-                    message = "⚠️ No runtime types are enabled. Check environment configuration."
-                elif enabled_count == 1:
-                    runtime_name = enabled_runtimes[0].value.replace('_', ' ').title()
-                    message = f"Single runtime mode: {runtime_name}"
-                else:
-                    priority_name = config.priority_runtime.value.replace('_', ' ').title()
-                    message = f"Dual runtime mode with {priority_name} priority"
-                
-                return {
-                    "runtime_info": runtime_info,
-                    "configuration": configuration,
-                    "enabled_runtimes": [rt.value for rt in enabled_runtimes],
-                    "enabled_count": enabled_count,
-                    "message": message,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                
-            except ImportError as e:
-                return {
-                    "error": "Runtime orchestrator not available",
-                    "message": "Runtime orchestration features are not initialized",
-                    "details": str(e),
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+            }
+            
+            # Configuration details
+            configuration = {
+                "agentcore_enabled": agentcore_enabled,
+            }
+            
+            # Create summary message
+            enabled_count = len(enabled_runtimes)
+            if enabled_count == 0:
+                message = "⚠️ No runtime types are enabled. Check environment configuration."
+            else:
+                message = f"AgentCore runtime enabled with {enabled_count} runtime(s)"
+            
+            return {
+                "runtime_info": runtime_info,
+                "configuration": configuration,
+                "enabled_runtimes": enabled_runtimes,
+                "enabled_count": enabled_count,
+                "message": message,
+                "timestamp": datetime.utcnow().isoformat()
+            }
                 
         except Exception as e:
             logger.error(f"Runtime command failed: {e}")
@@ -860,35 +842,22 @@ Examples:
         try:
             logger.info(f"Handling orchestrator command with args: {args}")
             
-            # NOTE: Runtime orchestrator service has been deprecated
-            # Using environment variables directly for orchestrator configuration
             import os
             
-            # Get configuration from environment variables
-            bedrock_agent_enabled = os.getenv("BEDROCK_AGENT_ENABLED", "false").lower() == "true"
             agentcore_enabled = os.getenv("AGENTCORE_ENABLED", "true").lower() == "true"
             
-            # Determine what information to show based on args
             if not args or args[0].lower() == "status":
-                # Show orchestrator status
                 return {
-                    "orchestrator_status": "deprecated - using environment configuration",
+                    "orchestrator_status": "agentcore-only",
                     "configuration": {
-                        "bedrock_agent_enabled": bedrock_agent_enabled,
-                            "agentcore_enabled": config.agentcore_enabled,
-                            "priority_runtime": config.priority_runtime.value,
-                            "fallback_enabled": config.fallback_enabled,
-                            "keyword_analysis_enabled": config.keyword_analysis_enabled,
-                            "health_check_interval": config.health_check_interval
-                        },
-                        "enabled_runtimes": [rt.value for rt in config.get_enabled_runtimes()],
-                        "message": "Runtime orchestrator is configured and ready",
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
+                        "agentcore_enabled": agentcore_enabled,
+                    },
+                    "message": "AgentCore runtime configuration",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
                 
-                elif args[0].lower() == "help":
-                    # Show orchestrator help
-                    help_text = """
+            elif args[0].lower() == "help":
+                help_text = """
 Orchestrator Commands:
 
 /agentcore orchestrator [status]
@@ -899,39 +868,20 @@ Orchestrator Commands:
 
 /agentcore runtime
     Show detailed runtime configuration and enabled types
-
-Environment Variables:
-    ENABLE_BEDROCK_AGENT=true/false     - Enable/disable Bedrock Agent runtime
-    ENABLE_BEDROCK_AGENTCORE=true/false - Enable/disable AgentCore runtime
-    ENABLE_KEYWORD_ANALYSIS=true/false  - Enable/disable keyword-based routing
-    RUNTIME_HEALTH_CHECK_INTERVAL=30    - Health check cache interval in seconds
-
-Runtime Modes:
-    - Bedrock Only: Only ENABLE_BEDROCK_AGENT=true
-    - AgentCore Only: Only ENABLE_BEDROCK_AGENTCORE=true  
-    - Dual Mode: Both enabled (AgentCore preferred, Bedrock fallback)
-                    """
-                    
-                    return {
-                        "help_text": help_text.strip(),
-                        "available_subcommands": ["status", "help"],
-                        "message": "Runtime orchestrator help",
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
+                """
                 
-                else:
-                    return {
-                        "error": f"Unknown orchestrator subcommand: {args[0]}",
-                        "message": "Use '/agentcore orchestrator help' for available commands",
-                        "available_subcommands": ["status", "help"],
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-                    
-            except ImportError as e:
                 return {
-                    "error": "Runtime orchestrator not available",
-                    "message": "Runtime orchestration features are not initialized",
-                    "details": str(e),
+                    "help_text": help_text.strip(),
+                    "available_subcommands": ["status", "help"],
+                    "message": "Runtime orchestrator help",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            
+            else:
+                return {
+                    "error": f"Unknown orchestrator subcommand: {args[0]}",
+                    "message": "Use '/agentcore orchestrator help' for available commands",
+                    "available_subcommands": ["status", "help"],
                     "timestamp": datetime.utcnow().isoformat()
                 }
                 

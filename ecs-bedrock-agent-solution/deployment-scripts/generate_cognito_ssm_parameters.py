@@ -39,10 +39,11 @@ logger = logging.getLogger(__name__)
 class CognitoSSMParameterGenerator:
     """Generates SSM parameters from CloudFormation stack Cognito resources"""
 
-    def __init__(self, region: str = "us-east-1", profile: str = None):
+    def __init__(self, region: str = "us-east-1", profile: str = None, ssm_prefix: str = "coa"):
         """Initialize the generator with AWS clients"""
         self.region = region
         self.profile = profile
+        self.ssm_prefix = ssm_prefix
         try:
             # Create session with profile if specified
             if profile:
@@ -185,36 +186,37 @@ class CognitoSSMParameterGenerator:
             cognito_resources.update(user_pool_details)
 
         # Define the SSM parameters to create
+        p = self.ssm_prefix
         ssm_parameters = {
-            "/coa/cognito/user_pool_id": {
+            f"/{p}/cognito/user_pool_id": {
                 "value": cognito_resources.get("user_pool_id", ""),
                 "description": "Shared Cognito User Pool ID for Cloud Optimization Platform",
             },
-            "/coa/cognito/web_app_client_id": {
+            f"/{p}/cognito/web_app_client_id": {
                 "value": cognito_resources.get("web_app_client_id", ""),
                 "description": "Web Application Client ID for frontend apps",
             },
-            "/coa/cognito/api_client_id": {
+            f"/{p}/cognito/api_client_id": {
                 "value": cognito_resources.get("api_client_id", ""),
                 "description": "API Client ID for backend services",
             },
-            "/coa/cognito/mcp_server_client_id": {
+            f"/{p}/cognito/mcp_server_client_id": {
                 "value": cognito_resources.get("mcp_server_client_id", ""),
                 "description": "MCP Server Client ID for AgentCore Runtime",
             },
-            "/coa/cognito/identity_pool_id": {
+            f"/{p}/cognito/identity_pool_id": {
                 "value": cognito_resources.get("identity_pool_id", ""),
                 "description": "Cognito Identity Pool ID for AWS resource access",
             },
-            "/coa/cognito/discovery_url": {
+            f"/{p}/cognito/discovery_url": {
                 "value": cognito_resources.get("discovery_url", ""),
                 "description": "OIDC Discovery URL for JWT validation",
             },
-            "/coa/cognito/region": {
+            f"/{p}/cognito/region": {
                 "value": self.region,
                 "description": "AWS Region where Cognito is deployed",
             },
-            "/coa/cognito/user_pool_arn": {
+            f"/{p}/cognito/user_pool_arn": {
                 "value": cognito_resources.get("user_pool_arn", ""),
                 "description": "Cognito User Pool ARN",
             },
@@ -222,7 +224,7 @@ class CognitoSSMParameterGenerator:
 
         # Add user pool domain if available
         if "user_pool_domain" in cognito_resources:
-            ssm_parameters["/coa/cognito/user_pool_domain"] = {
+            ssm_parameters[f"/{p}/cognito/user_pool_domain"] = {
                 "value": cognito_resources["user_pool_domain"],
                 "description": "Cognito User Pool Domain for OAuth flows",
             }
@@ -290,13 +292,14 @@ class CognitoSSMParameterGenerator:
 
     def validate_parameters(self) -> Dict[str, bool]:
         """Validate that all required SSM parameters exist and have values"""
+        p = self.ssm_prefix
         required_parameters = [
-            "/coa/cognito/user_pool_id",
-            "/coa/cognito/web_app_client_id",
-            "/coa/cognito/api_client_id",
-            "/coa/cognito/mcp_server_client_id",
-            "/coa/cognito/identity_pool_id",
-            "/coa/cognito/discovery_url",
+            f"/{p}/cognito/user_pool_id",
+            f"/{p}/cognito/web_app_client_id",
+            f"/{p}/cognito/api_client_id",
+            f"/{p}/cognito/mcp_server_client_id",
+            f"/{p}/cognito/identity_pool_id",
+            f"/{p}/cognito/discovery_url",
         ]
 
         results = {}
@@ -417,6 +420,10 @@ Examples:
     )
 
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "--ssm-prefix", default="coa",
+        help="SSM Parameter Store prefix (e.g. coa, coa-zx0)",
+    )
 
     args = parser.parse_args()
 
@@ -424,7 +431,7 @@ Examples:
         logging.getLogger().setLevel(logging.DEBUG)
 
     try:
-        generator = CognitoSSMParameterGenerator(region=args.region, profile=args.profile)
+        generator = CognitoSSMParameterGenerator(region=args.region, profile=args.profile, ssm_prefix=args.ssm_prefix)
 
         if args.validate:
             logger.info("🔍 Validating existing SSM parameters...")

@@ -39,6 +39,7 @@ class SharedCognitoDeployer:
         self,
         stack_name: str = "cloud-optimization-agentflow-cognito",
         region: str = "us-east-1",
+        ssm_prefix: str = "coa",
     ):
         """
         Initialize the shared Cognito deployer
@@ -46,9 +47,11 @@ class SharedCognitoDeployer:
         Args:
             stack_name: CloudFormation stack name for shared Cognito
             region: AWS region
+            ssm_prefix: SSM Parameter Store prefix (e.g. coa, coa-zx0)
         """
         self.stack_name = stack_name
         self.region = region
+        self.ssm_prefix = ssm_prefix
 
         # Initialize AWS clients
         self.cf_client = boto3.client("cloudformation", region_name=region)
@@ -392,57 +395,58 @@ class SharedCognitoDeployer:
         ssm_client = boto3.client("ssm", region_name=self.region)
 
         # Define standardized parameter mappings
+        p = self.ssm_prefix
         parameters = [
             {
-                "Name": "/coa/cognito/user_pool_id",
+                "Name": f"/{p}/cognito/user_pool_id",
                 "Value": outputs["UserPoolId"],
                 "Type": "String",
                 "Description": "Shared Cognito User Pool ID for Cloud Optimization Platform",
             },
             {
-                "Name": "/coa/cognito/web_app_client_id",
+                "Name": f"/{p}/cognito/web_app_client_id",
                 "Value": outputs["WebAppClientId"],
                 "Type": "String",
                 "Description": "Web Application Client ID for frontend apps",
             },
             {
-                "Name": "/coa/cognito/api_client_id",
+                "Name": f"/{p}/cognito/api_client_id",
                 "Value": outputs["APIClientId"],
                 "Type": "String",
                 "Description": "API Client ID for backend services",
             },
             {
-                "Name": "/coa/cognito/mcp_server_client_id",
+                "Name": f"/{p}/cognito/mcp_server_client_id",
                 "Value": outputs["MCPServerClientId"],
                 "Type": "String",
                 "Description": "MCP Server Client ID for AgentCore Runtime",
             },
             {
-                "Name": "/coa/cognito/identity_pool_id",
+                "Name": f"/{p}/cognito/identity_pool_id",
                 "Value": outputs["IdentityPoolId"],
                 "Type": "String",
                 "Description": "Cognito Identity Pool ID for AWS resource access",
             },
             {
-                "Name": "/coa/cognito/user_pool_domain",
+                "Name": f"/{p}/cognito/user_pool_domain",
                 "Value": outputs["UserPoolDomain"],
                 "Type": "String",
                 "Description": "Cognito User Pool Domain for OAuth flows",
             },
             {
-                "Name": "/coa/cognito/discovery_url",
+                "Name": f"/{p}/cognito/discovery_url",
                 "Value": outputs["DiscoveryUrl"],
                 "Type": "String",
                 "Description": "OIDC Discovery URL for JWT validation",
             },
             {
-                "Name": "/coa/cognito/region",
+                "Name": f"/{p}/cognito/region",
                 "Value": self.region,
                 "Type": "String",
                 "Description": "AWS Region where Cognito is deployed",
             },
             {
-                "Name": "/coa/cognito/user_pool_arn",
+                "Name": f"/{p}/cognito/user_pool_arn",
                 "Value": outputs["UserPoolArn"],
                 "Type": "String",
                 "Description": "Cognito User Pool ARN",
@@ -531,13 +535,17 @@ def main():
         action="store_true",
         help="Create a test user after deployment",
     )
+    parser.add_argument(
+        "--ssm-prefix", default="coa",
+        help="SSM Parameter Store prefix (e.g. coa, coa-zx0)",
+    )
 
     args = parser.parse_args()
 
     print("🚀 Deploying Shared Cognito Infrastructure")
     print("=" * 50)
 
-    deployer = SharedCognitoDeployer(stack_name=args.stack_name, region=args.region)
+    deployer = SharedCognitoDeployer(stack_name=args.stack_name, region=args.region, ssm_prefix=args.ssm_prefix)
 
     # Deploy the stack
     outputs = deployer.deploy_stack(environment=args.environment)

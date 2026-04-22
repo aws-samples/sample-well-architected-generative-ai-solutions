@@ -47,6 +47,13 @@ class ChatbotStackDeployer:
         environment: str = "prod",
         profile: Optional[str] = None,
         template_version: str = "0.1.4",
+        vpc_cidr: Optional[str] = None,
+        subnet1_cidr: Optional[str] = None,
+        subnet2_cidr: Optional[str] = None,
+        bedrock_model_id: Optional[str] = None,
+        ecs_task_cpu: Optional[str] = None,
+        ecs_task_memory: Optional[str] = None,
+        container_image: Optional[str] = None,
     ):
         """
         Initialize the chatbot stack deployer
@@ -56,13 +63,22 @@ class ChatbotStackDeployer:
             region: AWS region
             environment: Environment (dev, staging, prod)
             profile: AWS CLI profile name (optional)
-            template_version: CloudFormation template version (0.1.0, 0.1.2, or 0.1.3)
+            template_version: CloudFormation template version
         """
         self.stack_name = stack_name
         self.region = region
         self.template_version = template_version
         self.environment = environment
         self.profile = profile
+
+        # Optional CFN parameter overrides
+        self.vpc_cidr = vpc_cidr
+        self.subnet1_cidr = subnet1_cidr
+        self.subnet2_cidr = subnet2_cidr
+        self.bedrock_model_id = bedrock_model_id
+        self.ecs_task_cpu = ecs_task_cpu
+        self.ecs_task_memory = ecs_task_memory
+        self.container_image = container_image
 
         # Create session with profile if specified
         if profile:
@@ -269,6 +285,20 @@ class ChatbotStackDeployer:
             {"ParameterKey": "ParameterPrefix", "ParameterValue": self.param_prefix},
         ]
 
+        # Add optional parameter overrides (only if explicitly provided)
+        optional_params = {
+            "VpcCidrBlock": self.vpc_cidr,
+            "PublicSubnet1CidrBlock": self.subnet1_cidr,
+            "PublicSubnet2CidrBlock": self.subnet2_cidr,
+            "BedrockModelId": self.bedrock_model_id,
+            "EcsTaskCpu": self.ecs_task_cpu,
+            "EcsTaskMemory": self.ecs_task_memory,
+            "ContainerImage": self.container_image,
+        }
+        for key, value in optional_params.items():
+            if value:
+                parameters.append({"ParameterKey": key, "ParameterValue": value})
+
         logger.info(f"Deploying stack: {self.stack_name}")
         logger.info(f"Environment: {self.environment}")
         logger.info(f"Using existing SourceBucket: {actual_source_bucket}")
@@ -422,9 +452,16 @@ def main():
     parser.add_argument(
         "--template-version",
         default="0.1.4",
-        choices=["0.1.0", "0.1.2", "0.1.3", "0.1.4"],
+        choices=["0.1.4"],
         help="CloudFormation template version to use",
     )
+    parser.add_argument("--vpc-cidr", help="VPC CIDR block (e.g., 10.1.0.0/16)")
+    parser.add_argument("--subnet1-cidr", help="Public subnet 1 CIDR (e.g., 10.1.1.0/24)")
+    parser.add_argument("--subnet2-cidr", help="Public subnet 2 CIDR (e.g., 10.1.2.0/24)")
+    parser.add_argument("--bedrock-model-id", help="Bedrock model ID")
+    parser.add_argument("--ecs-task-cpu", choices=["256", "512", "1024", "2048", "4096"], help="ECS task CPU units")
+    parser.add_argument("--ecs-task-memory", choices=["512", "1024", "2048", "4096", "8192", "16384", "30720"], help="ECS task memory (MiB)")
+    parser.add_argument("--container-image", help="Initial container image URI")
 
     args = parser.parse_args()
 
@@ -435,6 +472,13 @@ def main():
             environment=args.environment,
             profile=args.profile,
             template_version=args.template_version,
+            vpc_cidr=args.vpc_cidr,
+            subnet1_cidr=args.subnet1_cidr,
+            subnet2_cidr=args.subnet2_cidr,
+            bedrock_model_id=args.bedrock_model_id,
+            ecs_task_cpu=args.ecs_task_cpu,
+            ecs_task_memory=args.ecs_task_memory,
+            container_image=args.container_image,
         )
 
         result = deployer.deploy()

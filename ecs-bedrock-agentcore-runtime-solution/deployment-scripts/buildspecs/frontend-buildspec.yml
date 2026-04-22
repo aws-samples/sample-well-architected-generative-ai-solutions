@@ -3,7 +3,7 @@ phases:
   pre_build:
     commands:
       - echo Frontend build started on `date`
-      - cd cloud-optimization-web-interfaces/cloud-optimization-web-interface/frontend
+      - cd frontend
       - echo "Current directory contents:"
       - ls -la
   build:
@@ -31,42 +31,23 @@ phases:
           }
         };
         EOF
-      - echo "✅ Configuration created successfully"
-      - echo "Frontend files to deploy:"
-      - ls -la *.html *.css *.js 2>/dev/null || echo "No additional frontend files found"
+      - echo "Configuration created successfully"
   post_build:
     commands:
-      - echo "📦 Uploading frontend files to S3..."
-      - echo "Uploading HTML files..."
+      - echo "Uploading frontend files to S3..."
       - aws s3 cp index.html s3://$FRONTEND_BUCKET/index.html --content-type "text/html"
-      - aws s3 cp local-test.html s3://$FRONTEND_BUCKET/local-test.html --content-type "text/html" || echo "local-test.html not found, skipping"
-      - echo "Uploading configuration..."
       - aws s3 cp config.js s3://$FRONTEND_BUCKET/config.js --content-type "application/javascript"
-      - echo "Uploading any CSS files..."
-      - for file in *.css; do [ -f "$file" ] && aws s3 cp "$file" s3://$FRONTEND_BUCKET/"$file" --content-type "text/css" || echo "No CSS files found"; done
-      - echo "Uploading any additional JS files..."
+      - for file in *.css; do [ -f "$file" ] && aws s3 cp "$file" s3://$FRONTEND_BUCKET/"$file" --content-type "text/css" || true; done
       - for file in *.js; do [ -f "$file" ] && [ "$file" != "config.js" ] && aws s3 cp "$file" s3://$FRONTEND_BUCKET/"$file" --content-type "application/javascript" || true; done
-      - echo "📋 Uploading prompt templates directory..."
       - |
         if [ -d "prompt-templates" ]; then
-          echo "Found prompt-templates directory, uploading..."
-          echo "Directory structure:"
-          find prompt-templates -type f -name "*.md" | head -10
           aws s3 cp prompt-templates s3://$FRONTEND_BUCKET/prompt-templates/ --recursive --content-type "text/markdown"
-          echo "✅ Prompt templates uploaded successfully to prompt-templates/ prefix"
-        else
-          echo "⚠️ prompt-templates directory not found, skipping"
-          echo "Current directory contents:"
-          ls -la
         fi
-      - echo "📁 Uploading any additional directories (css, js, etc.)..."
       - |
-        for dir in css js tests; do
+        for dir in css js; do
           if [ -d "$dir" ]; then
-            echo "Uploading $dir directory..."
             aws s3 cp "$dir"/ s3://$FRONTEND_BUCKET/"$dir"/ --recursive
           fi
         done
-      - echo "🔄 Creating CloudFront invalidation..."
       - aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
-      - echo "✅ Frontend deployment completed on `date`"
+      - echo "Frontend deployment completed on `date`"

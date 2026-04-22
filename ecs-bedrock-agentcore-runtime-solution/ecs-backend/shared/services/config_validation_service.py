@@ -683,3 +683,7 @@ def initialize_validation_service(param_prefix: str = None, region: str = None) 
     global _validation_service
     _validation_service = ConfigurationValidationService(param_prefix, region)
     return _validation_service
+
+
+# Alias for backward compatibility
+ConfigValidationService = ConfigurationValidationService

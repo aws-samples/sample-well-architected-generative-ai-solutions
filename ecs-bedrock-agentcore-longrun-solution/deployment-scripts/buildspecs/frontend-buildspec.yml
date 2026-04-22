@@ -1,0 +1,17 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - cd frontend-react
+      - npm ci
+  build:
+    commands:
+      - npm run build
+  post_build:
+    commands:
+      - echo Deploying to S3...
+      - aws s3 sync dist/ s3://$STATIC_BUCKET/ --delete --exclude "config.js"
+      - echo Invalidating CloudFront cache...
+      - aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"

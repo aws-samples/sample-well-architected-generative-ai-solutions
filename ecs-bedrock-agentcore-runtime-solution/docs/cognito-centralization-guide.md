@@ -52,15 +52,14 @@ python3 deployment-scripts/generate_cognito_ssm_parameters.py \
   --region us-east-1
 ```
 
-Alternatively, you can deploy the standalone shared Cognito infrastructure:
+Alternatively, Cognito is automatically created as part of the main stack deployment:
 
 ```bash
-# Deploy standalone shared Cognito user pool
-python3 deployment-scripts/components/deploy_shared_cognito.py \
-  --stack-name cloud-optimization-agentflow-cognito \
+# Deploy the full stack (includes Cognito)
+python3 deployment-scripts/deploy_chatbot_stack.py \
+  --stack-name coa \
   --region us-east-1 \
-  --environment prod \
-  --create-test-user
+  --environment prod
 ```
 
 This creates:
@@ -74,22 +73,18 @@ This creates:
 
 The current implementation uses these deployment scripts:
 
-#### For MCP Servers:
+#### For Components:
+Components are deployed as part of the main stack. Register agents separately:
 ```bash
-# Deploy WA Security MCP Server (uses shared Cognito automatically)
-python3 deployment-scripts/components/deploy_component_wa_security_mcp.py \
-  --region us-east-1
-
-# Deploy AWS API MCP Server (uses shared Cognito automatically)
-python3 deployment-scripts/components/deploy_component_aws_api_mcp_server.py \
-  --region us-east-1
+cd deployment-scripts/register-agentcore-runtime
+./register_agent.sh
 ```
 
-#### For Bedrock Agent:
+#### For AgentCore Registration:
 ```bash
-# Deploy Enhanced Security Agent (uses shared Cognito automatically)
-python3 deployment-scripts/components/deploy_bedrockagent_wa_security_agent.py \
-  --region us-east-1
+# Register agents with the COA backend
+cd deployment-scripts/register-agentcore-runtime
+./register_agent.sh
 ```
 
 #### For Web Applications:
@@ -293,18 +288,15 @@ COGNITO_DISCOVERY_URL=https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXX
 # Production environment
 ./deploy-coa.sh --stack-name cloud-optimization-assistant-prod --environment prod --region us-east-1
 
-# Or deploy standalone Cognito for each environment
-python3 deployment-scripts/components/deploy_shared_cognito.py \
-  --stack-name cloud-optimization-shared-cognito-dev \
-  --environment dev
+# Or deploy separate stacks per environment
+python3 deployment-scripts/deploy_chatbot_stack.py \
+  --stack-name coa-dev --environment dev --region us-east-1
 
-python3 deployment-scripts/components/deploy_shared_cognito.py \
-  --stack-name cloud-optimization-shared-cognito-staging \
-  --environment staging
+python3 deployment-scripts/deploy_chatbot_stack.py \
+  --stack-name coa-staging --environment staging --region us-east-1
 
-python3 deployment-scripts/components/deploy_shared_cognito.py \
-  --stack-name cloud-optimization-shared-cognito-prod \
-  --environment prod
+python3 deployment-scripts/deploy_chatbot_stack.py \
+  --stack-name coa-prod --environment prod --region us-east-1
 ```
 
 ## Troubleshooting

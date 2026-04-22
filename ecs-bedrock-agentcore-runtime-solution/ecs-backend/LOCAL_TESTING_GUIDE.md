@@ -32,7 +32,7 @@ The system will automatically disable authentication if it detects certain local
 ### Option 1: Environment Variables + uvicorn
 ```bash
 # Navigate to backend directory
-cd cloud-optimization-web-interfaces/cloud-optimization-web-interface/backend
+cd ecs-backend
 
 # Set environment variables and run
 DISABLE_AUTH=true BACKEND_MODE=agentcore PARAM_PREFIX=coacost uvicorn main:app --host 0.0.0.0 --port 8001 --reload
@@ -67,13 +67,6 @@ docker run -p 8001:8000 \
   coa-agentcore:latest
 ```
 
-## Running BedrockAgent Backend with Authentication Disabled
-
-```bash
-# For BedrockAgent version
-DISABLE_AUTH=true BACKEND_MODE=bedrockagent PARAM_PREFIX=coacost uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
 ## Testing the Frontend with Authentication Disabled
 
 ### 1. Start the Backend
@@ -84,7 +77,7 @@ DISABLE_AUTH=true BACKEND_MODE=agentcore PARAM_PREFIX=coacost uvicorn main:app -
 ### 2. Start the Frontend
 ```bash
 # In another terminal
-cd cloud-optimization-web-interfaces/cloud-optimization-web-interface/frontend
+cd frontend
 python -m http.server 8080
 ```
 
@@ -194,7 +187,7 @@ python test_local_auth.py
 |----------|-------------|---------|
 | `DISABLE_AUTH` | Explicitly disable authentication | `true` |
 | `ENVIRONMENT` | Environment type (auto-disables auth for local/dev/test) | `local` |
-| `BACKEND_MODE` | Backend version to run | `agentcore` or `bedrockagent` |
+| `BACKEND_MODE` | Backend version to run | `agentcore` |
 | `PARAM_PREFIX` | Parameter prefix for AWS SSM | `coacost` |
 | `AWS_DEFAULT_REGION` | AWS region | `us-east-1` |
 
