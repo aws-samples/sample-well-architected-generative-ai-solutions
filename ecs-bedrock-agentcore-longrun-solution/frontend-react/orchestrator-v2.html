@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AgentCore Orchestrator v2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f1b2d;color:#d1d5db;height:100vh;display:flex;flex-direction:column}
+header{background:#161e2d;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a3a50}
+header h1{font-size:16px;color:#fff;font-weight:600}
+#status{font-size:12px;display:flex;align-items:center;gap:6px}
+#status .dot{width:8px;height:8px;border-radius:50%}
+.main{flex:1;display:flex;overflow:hidden}
+/* Chat area */
+.chat-panel{flex:1;display:flex;flex-direction:column;min-width:0}
+#chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:78%;padding:10px 14px;border-radius:8px;font-size:14px;line-height:1.6;word-wrap:break-word}
+.msg.user{align-self:flex-end;background:#0073bb;color:#fff}
+.msg.ai{align-self:flex-start;background:#1a2740;color:#e0e0e0;border-left:3px solid #3b82f6}
+.msg.ai.ack{border-left-color:#f59e0b}
+.msg pre{background:#0a1220;padding:8px;border-radius:4px;overflow-x:auto;font-size:12px;margin:6px 0}
+.msg code{background:#0a1220;padding:1px 4px;border-radius:3px;font-size:12px}
+.input-bar{padding:12px 16px;background:#161e2d;border-top:1px solid #2a3a50;display:flex;gap:8px}
+.input-bar textarea{flex:1;background:#0f1b2d;border:1px solid #2a3a50;color:#fff;padding:8px 12px;border-radius:6px;resize:none;font-size:14px;font-family:inherit;outline:none}
+.input-bar textarea:focus{border-color:#3b82f6}
+.input-bar button{background:#0073bb;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500}
+.input-bar button:hover{background:#005a94}
+/* Task panel */
+.task-panel{width:360px;background:#161e2d;border-left:1px solid #2a3a50;display:flex;flex-direction:column;transition:width .2s}
+.task-panel.collapsed{width:40px}
+.task-header{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a3a50;min-height:44px}
+.task-header h2{font-size:14px;color:#fff;font-weight:600;white-space:nowrap}
+.task-panel.collapsed .task-header h2,.task-panel.collapsed .task-count,.task-panel.collapsed #task-list{display:none}
+.toggle-btn{background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px;padding:2px 6px}
+.toggle-btn:hover{color:#fff}
+.task-count{font-size:11px;color:#9ca3af;padding:0 12px 4px}
+#task-list{flex:1;overflow-y:auto;padding:6px}
+.task-item{margin:4px 6px;border-radius:6px;background:#0f1b2d;border:1px solid #2a3a50;overflow:hidden}
+.task-row{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;user-select:none}
+.task-row:hover{background:#1a2740}
+.task-icon{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+/* spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:16px;height:16px;border:2px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+.dot-green{width:10px;height:10px;border-radius:50%;background:#22c55e}
+.dot-red{width:10px;height:10px;border-radius:50%;background:#ef4444}
+.task-label{flex:1;font-size:13px;color:#d1d5db;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-chevron{color:#6b7280;font-size:12px;transition:transform .15s}
+.task-chevron.open{transform:rotate(90deg)}
+.task-body{padding:0 12px 12px;font-size:13px;line-height:1.6;color:#b0b8c8;display:none;border-top:1px solid #2a3a50}
+.task-body.open{display:block;padding-top:10px}
+.task-body pre{background:#0a1220;padding:8px;border-radius:4px;overflow-x:auto;font-size:12px;margin:4px 0;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚀 AgentCore Orchestrator v2</h1>
+  <div id="status"><span class="dot" id="status-dot"></span><span id="status-text"></span></div>
+</header>
+<div class="main">
+  <div class="chat-panel">
+    <div id="chat-messages"></div>
+    <div class="input-bar">
+      <textarea id="input" rows="2" placeholder="Ask about your AWS environment..."></textarea>
+      <button id="send-btn" onclick="send()">Send</button>
+    </div>
+  </div>
+  <div class="task-panel" id="task-panel">
+    <div class="task-header">
+      <h2>📋 Tasks</h2>
+      <button class="toggle-btn" onclick="togglePanel()" title="Toggle panel">◀</button>
+    </div>
+    <div class="task-count" id="task-count"></div>
+    <div id="task-list"></div>
+  </div>
+</div>
+<script src="/config.js"></script>
+<script>
+const chatEl=document.getElementById('chat-messages'),inputEl=document.getElementById('input'),taskListEl=document.getElementById('task-list'),taskCountEl=document.getElementById('task-count'),panel=document.getElementById('task-panel'),statusDot=document.getElementById('status-dot'),statusText=document.getElementById('status-text');
+const tasks={};const pendingAcks=[];let ws,lastUserMsg='';
+
+function connect(){
+  const proto=location.protocol==='https:'?'wss:':'ws:';
+  const url=window.APP_CONFIG?.api?.wsEndpoint||`${proto}//${location.host}/ws`;
+  ws=new WebSocket(url);
+  ws.onopen=()=>setStatus(true);
+  ws.onclose=()=>{setStatus(false);setTimeout(connect,3000)};
+  ws.onmessage=e=>handleMsg(JSON.parse(e.data));
+}
+
+function setStatus(on){
+  statusDot.style.background=on?'#22c55e':'#ef4444';
+  statusText.textContent=on?'Connected':'Disconnected';
+}
+
+function send(){
+  const t=inputEl.value.trim();
+  if(!t||!ws||ws.readyState!==1)return;
+  lastUserMsg=t;
+  addChat('user',t);
+  ws.send(JSON.stringify({text:t}));
+  inputEl.value='';
+}
+
+inputEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+
+// Derive a short task name from the user message
+function briefName(msg){
+  const w=msg.replace(/[?!.,]+/g,'').trim().split(/\s+/);
+  if(w.length<=4)return w.map(s=>s[0].toUpperCase()+s.slice(1)).join(' ');
+  // pick key words: skip filler
+  const skip=new Set(['what','whats','what\'s','is','my','the','a','an','can','you','me','please','do','how','are','i','to','of','for','in','on','about']);
+  const key=w.filter(s=>!skip.has(s.toLowerCase())).slice(0,4);
+  return (key.length?key:w.slice(0,3)).map(s=>s[0].toUpperCase()+s.slice(1)).join(' ');
+}
+
+function handleMsg(m){
+  switch(m.type){
+    case 'ack':
+      addChat('ai ack',m.message);
+      // create placeholder task immediately
+      const pId='pending-'+Date.now();
+      const name=briefName(lastUserMsg);
+      tasks[pId]={status:'running',name:name,text:'',data:null};
+      pendingAcks.push(pId);
+      renderTaskItem(pId);
+      break;
+    case 'chat':
+      addChat('ai',m.message);
+      break;
+    case 'task_complete':
+      resolveTask(m.task_id,'done',m.brief||m.message,m.data);
+      break;
+    case 'task_error':
+      resolveTask(m.task_id,'error',m.message);
+      break;
+    case 'detail':
+      resolveTask(m.task_id,'done',null,m.data);
+      break;
+    case 'brief':
+      resolveTask(m.task_id,'done',m.message);
+      break;
+  }
+}
+
+function addChat(cls,text){
+  const d=document.createElement('div');
+  d.className='msg '+cls;
+  d.innerHTML=cls.startsWith('ai')?renderMd(text):esc(text);
+  chatEl.appendChild(d);
+  chatEl.scrollTop=chatEl.scrollHeight;
+}
+
+// Bind a real task_id to a pending placeholder, or create new if none pending
+function resolveTask(id,status,text,data){
+  let t;
+  if(tasks[id]){
+    // already known (e.g. detail/brief update)
+    t=tasks[id];
+  }else if(pendingAcks.length){
+    // bind to oldest pending placeholder
+    const pId=pendingAcks.shift();
+    const old=tasks[pId];
+    delete tasks[pId];
+    // re-key under real id, keep the name
+    t={...old,status:'running'};
+    tasks[id]=t;
+    // swap DOM id
+    const el=document.getElementById('task-'+pId);
+    if(el){el.id='task-'+id;el.querySelector('.task-row').setAttribute('onclick',`toggleTask('${id}')`)}
+  }else{
+    // no pending placeholder — create fresh
+    t={status:'running',name:'Task',text:'',data:null};
+    tasks[id]=t;
+    renderTaskItem(id);
+  }
+  t.status=status;
+  if(text!=null)t.text=text;
+  if(data!=null)t.data=data;
+  refreshTaskUI(id);
+}
+
+function renderTaskItem(id){
+  const t=tasks[id];
+  const item=document.createElement('div');
+  item.className='task-item';item.id='task-'+id;
+  item.innerHTML=`<div class="task-row" onclick="toggleTask('${id}')"><div class="task-icon"><div class="spinner"></div></div><div class="task-label">${esc(t.name)} (...)</div><span class="task-chevron">▶</span></div><div class="task-body"></div>`;
+  taskListEl.prepend(item);
+  updateCount();
+  if(panel.classList.contains('collapsed'))togglePanel();
+}
+
+function refreshTaskUI(id){
+  const t=tasks[id],el=document.getElementById('task-'+id);
+  if(!el)return;
+  const icon=el.querySelector('.task-icon');
+  const label=el.querySelector('.task-label');
+  const body=el.querySelector('.task-body');
+  const displayId=id.startsWith('pending-')?'...':id;
+  if(t.status==='done'){
+    icon.innerHTML='<div class="dot-green"></div>';
+    label.textContent=t.name+' ('+displayId+')';
+  }else if(t.status==='error'){
+    icon.innerHTML='<div class="dot-red"></div>';
+    label.textContent=t.name+' ('+displayId+')';
+  }else{
+    label.textContent=t.name+' ('+displayId+')';
+  }
+  let html='';
+  if(t.text)html+=renderMd(t.text);
+  if(t.data)html+='<pre>'+esc(JSON.stringify(t.data,null,2))+'</pre>';
+  body.innerHTML=html||'<em>No details yet.</em>';
+  updateCount();
+}
+
+function toggleTask(id){
+  const el=document.getElementById('task-'+id);
+  el.querySelector('.task-body').classList.toggle('open');
+  el.querySelector('.task-chevron').classList.toggle('open');
+}
+
+function togglePanel(){
+  panel.classList.toggle('collapsed');
+  const btn=panel.querySelector('.toggle-btn');
+  btn.textContent=panel.classList.contains('collapsed')?'▶':'◀';
+}
+
+function updateCount(){
+  const ids=Object.keys(tasks);
+  const done=ids.filter(k=>tasks[k].status==='done').length;
+  const err=ids.filter(k=>tasks[k].status==='error').length;
+  const run=ids.length-done-err;
+  taskCountEl.textContent=`${ids.length} task${ids.length!==1?'s':''} — ${run} running, ${done} done${err?', '+err+' error':''}`;
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function renderMd(text){
+  return esc(text)
+    .replace(/```(\w*)\n([\s\S]*?)```/g,'<pre><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^### (.+)$/gm,'<div style="font-size:15px;font-weight:700;margin:10px 0 4px">$1</div>')
+    .replace(/^## (.+)$/gm,'<div style="font-size:16px;font-weight:700;margin:12px 0 4px">$1</div>')
+    .replace(/^# (.+)$/gm,'<div style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</div>')
+    .replace(/^[*-] (.+)$/gm,'<li style="margin-left:16px">$1</li>')
+    .replace(/^\d+\. (.+)$/gm,'<li style="margin-left:16px;list-style-type:decimal">$1</li>')
+    .replace(/^---$/gm,'<hr style="border:none;border-top:1px solid #555;margin:8px 0">')
+    .replace(/\n\n/g,'<br/><br/>').replace(/\n/g,'<br/>');
+}
+
+connect();
+</script>
+</body>
+</html>
