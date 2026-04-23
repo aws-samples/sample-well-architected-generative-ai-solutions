@@ -2,6 +2,13 @@
  * Template Dropdown Generator
  * Dynamically creates dropdown UI elements based on discovered template structure
  */
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 class TemplateDropdownGenerator {
     constructor() {
         this.dropdowns = new Map();
@@ -300,7 +307,7 @@ class TemplateDropdownGenerator {
         }
         
         indicator.innerHTML = `
-            <span class="selected-template-name">✓ ${templateInfo.displayName}</span>
+            <span class="selected-template-name">✓ ${escapeHtml(templateInfo.displayName)}</span>
             <button class="clear-selection-btn" title="Clear selection">×</button>
         `;
 
@@ -547,8 +554,8 @@ class TemplateDropdownGenerator {
             // Show loading state
             preview.innerHTML = `
                 <div class="template-preview-header">
-                    <strong>${templateName}</strong>
-                    <span class="template-preview-category">${category}</span>
+                    <strong>${escapeHtml(templateName)}</strong>
+                    <span class="template-preview-category">${escapeHtml(category)}</span>
                 </div>
                 <div class="template-preview-content">
                     <div class="template-preview-loading">
@@ -571,8 +578,8 @@ class TemplateDropdownGenerator {
                     
                     preview.innerHTML = `
                         <div class="template-preview-header">
-                            <strong>${templateName}</strong>
-                            <span class="template-preview-category">${category}</span>
+                            <strong>${escapeHtml(templateName)}</strong>
+                            <span class="template-preview-category">${escapeHtml(category)}</span>
                         </div>
                         <div class="template-preview-content">
                             ${previewContent}
@@ -587,8 +594,8 @@ class TemplateDropdownGenerator {
             } catch (error) {
                 preview.innerHTML = `
                     <div class="template-preview-header">
-                        <strong>${templateName}</strong>
-                        <span class="template-preview-category">${category}</span>
+                        <strong>${escapeHtml(templateName)}</strong>
+                        <span class="template-preview-category">${escapeHtml(category)}</span>
                     </div>
                     <div class="template-preview-content">
                         <div class="template-preview-error">

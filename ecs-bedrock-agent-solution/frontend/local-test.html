@@ -7,6 +7,8 @@
     <title>🛡️ AWS Well-Architected Security Assistant - Local Test</title>
     <!-- Marked.js for markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    <!-- DOMPurify for safe HTML rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -608,7 +610,7 @@ For now, you can test basic chat functionality with **markdown support**!
 
             // Process content with markdown and JSON sections
             let processedContent = processContentWithMarkdown(content, structuredData, humanSummary);
-            contentDiv.innerHTML = processedContent;
+            contentDiv.innerHTML = DOMPurify.sanitize(processedContent);
 
             messageDiv.appendChild(avatar);
             messageDiv.appendChild(contentDiv);

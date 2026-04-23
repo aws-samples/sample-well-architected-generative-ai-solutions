@@ -339,7 +339,7 @@ def register_agentcore_routes(app: FastAPI, services: Dict[str, Any], full_mode:
                     "status": "unhealthy",
                     "version": "agentcore",
                     "mode": services.get("mode", "unknown"),
-                    "error": str(e),
+                    "error": "health_check_failed",
                     "timestamp": datetime.utcnow().isoformat()
                 }
             )
@@ -362,7 +362,7 @@ def register_agentcore_routes(app: FastAPI, services: Dict[str, Any], full_mode:
             
         except Exception as e:
             logger.error(f"Failed to get version info: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Internal server error")
     
     # Configuration endpoint
     @app.get("/api/config/status")
@@ -386,7 +386,7 @@ def register_agentcore_routes(app: FastAPI, services: Dict[str, Any], full_mode:
             
         except Exception as e:
             logger.error(f"Failed to get config status: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Internal server error")
     
     # Chat endpoint (always available via Bedrock model fallback)
     @app.post("/api/chat")
@@ -450,7 +450,7 @@ def register_agentcore_routes(app: FastAPI, services: Dict[str, Any], full_mode:
             
         except Exception as e:
             logger.error(f"Chat endpoint error: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Internal server error")
     
     # Model service endpoint
     @app.post("/api/model/invoke")
@@ -480,7 +480,7 @@ def register_agentcore_routes(app: FastAPI, services: Dict[str, Any], full_mode:
             
         except Exception as e:
             logger.error(f"Model invocation error: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Internal server error")
     
     if full_mode:
         # Full mode specific endpoints
@@ -508,7 +508,7 @@ def register_agentcore_routes(app: FastAPI, services: Dict[str, Any], full_mode:
                 
             except Exception as e:
                 logger.error(f"Failed to get agents status: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
         
         @app.post("/api/agents/discover")
         async def trigger_agent_discovery():
@@ -530,7 +530,7 @@ def register_agentcore_routes(app: FastAPI, services: Dict[str, Any], full_mode:
                 
             except Exception as e:
                 logger.error(f"Failed to trigger discovery: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
 
 async def fallback_to_model_chat(services: Dict[str, Any], message: str, session_id: str) -> Dict[str, Any]:

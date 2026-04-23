@@ -86,10 +86,8 @@ def test_agent_signatures():
             print("✅ Both agents have correct signatures")
             return True
         else:
-            print(f"❌ Signature mismatch:")
-            print(f"  API agent: {api_params}")
-            print(f"  Billing agent: {billing_params}")
-            print(f"  Expected: {expected_params}")
+            print(f"❌ Signature mismatch: expected {len(expected_params)} params, "
+                  f"got API={len(api_params)}, Billing={len(billing_params)}")
             return False
             
     except Exception as e:

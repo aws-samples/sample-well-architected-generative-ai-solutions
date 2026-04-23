@@ -387,7 +387,7 @@ async def health_check():
                 "timestamp": datetime.utcnow().isoformat(),
                 "service": "cloud-optimization-backend",
                 "version": "1.0.0",
-                "error": str(e),
+                "error": "health_check_failed",
                 "checks": {
                     "dependencies": "error",
                     "environment": "error", 
@@ -414,7 +414,7 @@ async def chat_endpoint(request: ChatRequest, user=Depends(get_current_user)):
         return response
     except Exception as e:
         logger.error(f"Chat endpoint error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.websocket("/ws/{session_id}")
@@ -537,7 +537,8 @@ async def get_available_tools(user=Depends(get_current_user)):
         tools = await mcp_service.get_available_tools()
         return {"tools": tools}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/api/session/{session_id}/info")
@@ -551,7 +552,8 @@ async def get_session_info(session_id: str, user=Depends(get_current_user)):
         session_info = orchestrator_service.get_session_info(session)
         return session_info
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/api/session/{session_id}/initialize")
@@ -569,7 +571,8 @@ async def initialize_session(session_id: str, user=Depends(get_current_user)):
         init_result = await orchestrator_service.initialize_session(session)
         return init_result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/api/aws-config")
@@ -636,7 +639,8 @@ async def get_all_config(user=Depends(get_current_user)):
 
         return {"config": safe_config, "ssm_status": config_service.get_ssm_status()}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/api/config/refresh")
@@ -646,7 +650,8 @@ async def refresh_config(user=Depends(get_current_user)):
         config_service.refresh_cache()
         return {"status": "success", "message": "Configuration cache refreshed"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/api/config/ssm/parameters")
@@ -656,7 +661,8 @@ async def list_ssm_parameters(user=Depends(get_current_user)):
         result = config_service.list_ssm_parameters()
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 if __name__ == "__main__":

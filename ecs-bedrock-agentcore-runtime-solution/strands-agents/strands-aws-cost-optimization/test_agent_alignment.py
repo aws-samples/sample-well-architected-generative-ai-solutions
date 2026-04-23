@@ -18,28 +18,25 @@ def test_function_signatures():
     api_sig = inspect.signature(aws_api_agent)
     billing_sig = inspect.signature(aws_billing_management_agent)
     
-    print(f"aws_api_agent signature: {api_sig}")
-    print(f"aws_billing_management_agent signature: {billing_sig}")
+    print(f"aws_api_agent parameter count: {len(api_sig.parameters)}")
+    print(f"aws_billing_management_agent parameter count: {len(billing_sig.parameters)}")
     
     # Check that both have the required parameters
     required_params = ['query', 'env', 'role_arn', 'account_id', 'external_id', 'session_name']
     
-    api_params = list(api_sig.parameters.keys())
-    billing_params = list(billing_sig.parameters.keys())
-    
-    print(f"\nAPI agent parameters: {api_params}")
-    print(f"Billing agent parameters: {billing_params}")
+    api_params = set(api_sig.parameters.keys())
+    billing_params = set(billing_sig.parameters.keys())
     
     missing_in_api = [p for p in required_params if p not in api_params]
     missing_in_billing = [p for p in required_params if p not in billing_params]
     
     if missing_in_api:
-        print(f"❌ Missing in API agent: {missing_in_api}")
+        print(f"❌ API agent missing {len(missing_in_api)} required parameter(s)")
     else:
         print("✅ API agent has all required parameters")
         
     if missing_in_billing:
-        print(f"❌ Missing in billing agent: {missing_in_billing}")
+        print(f"❌ Billing agent missing {len(missing_in_billing)} required parameter(s)")
     else:
         print("✅ Billing agent has all required parameters")
     
@@ -81,14 +78,11 @@ def test_environment_config():
     # Get function signature
     env_sig = inspect.signature(get_environment_config)
     
-    print(f"Shared get_environment_config signature: {env_sig}")
+    print(f"Shared get_environment_config parameter count: {len(env_sig.parameters)}")
     
     # Check parameters
-    env_params = list(env_sig.parameters.keys())
+    env_params = set(env_sig.parameters.keys())
     expected_params = ['role_arn', 'external_id', 'session_name', 'custom_env', 'default_session_name', 'working_dir']
-    
-    print(f"Environment config parameters: {env_params}")
-    print(f"Expected parameters: {expected_params}")
     
     if all(param in env_params for param in expected_params[:4]):  # Check core parameters
         print("✅ Shared environment config function has expected parameters")

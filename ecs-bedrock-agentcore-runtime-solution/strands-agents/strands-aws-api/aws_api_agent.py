@@ -120,7 +120,7 @@ def get_environment_config(role_arn=None, external_id=None, session_name=None, c
     else:
         env["PYTHONPATH"] = f"{src_path}:{current_dir}"
     
-    print("MCP server environment:", {k: v for k, v in env.items() if not k.startswith("AWS_SECRET")})
+    print("MCP server environment:", {k: v for k, v in env.items() if not k.startswith(("AWS_SECRET", "AWS_ACCESS", "AWS_SESSION"))})
     
     return env
 

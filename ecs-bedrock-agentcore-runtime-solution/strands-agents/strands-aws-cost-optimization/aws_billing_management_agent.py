@@ -351,7 +351,8 @@ Examples:
             print("=" * 60)
             print("RESULT:")
             print("=" * 60)
-            print(result)
+            logging.debug("Agent result: %s", result)
+            print("(Result logged at DEBUG level)")
             print("=" * 60)
             
             return True
@@ -464,7 +465,7 @@ if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "--examples":
     result1 = aws_billing_management_agent(
         "Show me my EC2 costs for the last month and identify optimization opportunities."
     )
-    print(result1)
+    logging.debug("Result: %s", result1)
     
     print("\n" + "="*50 + "\n")
     
@@ -472,11 +473,11 @@ if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "--examples":
     print("=== Cross-Account Billing Operations (using role_arn) ===")
     result2 = aws_billing_management_agent(
         "Analyze cost optimization opportunities across all services in the target account.",
-        role_arn="arn:aws:iam::256358067059:role/COAReadOnlyRole",
+        role_arn="arn:aws:iam::<ACCOUNT_ID>:role/COAReadOnlyRole",
         external_id="your-external-id-here",  # Replace with actual external ID if required
         session_name="aws-billing-cross-account-operations"
     )
-    print(result2)
+    logging.debug("Result: %s", result2)
     
     print("\n" + "="*50 + "\n")
     
@@ -488,4 +489,4 @@ if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "--examples":
         external_id="your-external-id-here",  # Replace with actual external ID if required
         session_name="aws-billing-cross-account-operations"
     )
-    print(result3)
+    logging.debug("Result: %s", result3)

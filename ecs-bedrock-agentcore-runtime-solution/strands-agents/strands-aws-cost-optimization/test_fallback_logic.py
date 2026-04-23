@@ -69,8 +69,8 @@ def test_tool_signatures():
     billing_sig = inspect.signature(aws_billing_management_agent)
     api_sig = inspect.signature(aws_api_agent)
     
-    print(f"Billing agent signature: {billing_sig}")
-    print(f"API agent signature: {api_sig}")
+    print(f"Billing agent parameter count: {len(billing_sig.parameters)}")
+    print(f"API agent parameter count: {len(api_sig.parameters)}")
     
     # Check that both have the same parameters
     billing_params = list(billing_sig.parameters.keys())
@@ -80,9 +80,7 @@ def test_tool_signatures():
         print("✅ Both agents have identical signatures for seamless fallback")
         return True
     else:
-        print(f"❌ Signature mismatch:")
-        print(f"  Billing: {billing_params}")
-        print(f"  API: {api_params}")
+        print(f"❌ Signature mismatch: parameter lists differ")
         return False
 
 

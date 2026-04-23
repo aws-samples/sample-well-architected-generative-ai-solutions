@@ -5,7 +5,7 @@
 
 // Environment detection
 const isLocalDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const isProduction = window.location.hostname.includes('amazonaws.com') || window.location.hostname.includes('cloudfront.net');
+const isProduction = window.location.hostname.endsWith('.amazonaws.com') || window.location.hostname.endsWith('.cloudfront.net');
 
 // Configuration based on environment
 const AgentConfig = {

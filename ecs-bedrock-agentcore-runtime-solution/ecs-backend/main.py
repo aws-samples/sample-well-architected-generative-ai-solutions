@@ -97,11 +97,11 @@ except Exception as e:
 
     @app.get("/health")
     async def health_check():
-        return {"status": "unhealthy", "error": str(e), "timestamp": datetime.utcnow().isoformat()}
+        return {"status": "unhealthy", "error": "initialization_failed", "timestamp": datetime.utcnow().isoformat()}
 
     @app.get("/")
     async def root():
-        raise HTTPException(status_code=503, detail=f"Backend initialization failed: {e}")
+        raise HTTPException(status_code=503, detail="Backend initialization failed")
 
 
 if __name__ == "__main__":
