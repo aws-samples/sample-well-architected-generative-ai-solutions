@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Task Log — Cloud Operation Assistant</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f1b2d;color:#d1d5db;height:100vh;display:flex;flex-direction:column}
+header{background:#161e2d;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a3a50}
+header h1{font-size:16px;color:#fff;font-weight:600}
+header a{color:#60a5fa;font-size:13px;text-decoration:none}
+header a:hover{text-decoration:underline}
+.main{flex:1;display:flex;overflow:hidden}
+.sidebar{width:320px;background:#161e2d;border-right:1px solid #2a3a50;display:flex;flex-direction:column}
+.sidebar .controls{padding:10px 12px;border-bottom:1px solid #2a3a50;display:flex;gap:8px}
+.sidebar input{flex:1;background:#0f1b2d;border:1px solid #2a3a50;color:#fff;padding:6px 10px;border-radius:4px;font-size:13px;outline:none}
+.sidebar input:focus{border-color:#3b82f6}
+.sidebar button{background:#0073bb;color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px}
+#session-list{flex:1;overflow-y:auto}
+.session-item{padding:10px 12px;border-bottom:1px solid #1a2740;cursor:pointer;font-size:13px}
+.session-item:hover,.session-item.active{background:#1a2740}
+.session-item .sid{color:#60a5fa;font-weight:600}
+.session-item .meta{color:#6b7280;font-size:11px;margin-top:2px}
+.detail{flex:1;overflow-y:auto;padding:20px}
+.detail .empty{color:#6b7280;text-align:center;margin-top:80px;font-size:14px}
+.detail h2{color:#fff;font-size:16px;margin-bottom:4px}
+.detail .session-meta{color:#6b7280;font-size:12px;margin-bottom:16px}
+.history-item{margin-bottom:8px;padding:8px 12px;border-radius:6px;font-size:13px;line-height:1.5}
+.history-item.user{background:#0073bb;color:#fff;max-width:70%;margin-left:auto}
+.history-item.ai{background:#1a2740;color:#e0e0e0;max-width:70%;border-left:3px solid #3b82f6}
+.task-card{background:#1a2740;border:1px solid #2a3a50;border-radius:8px;margin-bottom:10px;overflow:hidden}
+.task-card-header{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;user-select:none}
+.task-card-header:hover{background:#232f3e}
+.task-card .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.task-card .dot.done{background:#22c55e}
+.task-card .dot.error{background:#ef4444}
+.task-card .dot.running{background:#3b82f6}
+.task-card .tname{flex:1;font-size:13px;color:#d1d5db}
+.task-card .tid{color:#6b7280;font-size:11px}
+.task-card .tchevron{color:#6b7280;font-size:12px;transition:transform .15s}
+.task-card .tchevron.open{transform:rotate(90deg)}
+.task-card-body{display:none;padding:10px 12px;border-top:1px solid #2a3a50;font-size:13px;color:#b0b8c8;line-height:1.6}
+.task-card-body.open{display:block}
+.task-card-body pre{background:#0a1220;padding:8px;border-radius:4px;overflow-x:auto;font-size:12px;margin:4px 0;white-space:pre-wrap}
+.task-card .timestamps{font-size:11px;color:#6b7280;margin-top:6px}
+.task-card .task-response{line-height:1.7}
+.task-card .task-response li{margin:2px 0}
+.task-card .task-response strong{color:#e0e0e0}
+.section-label{font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>📋 Task Log</h1>
+  <a href="/cloud-operation-assistant-v3.html">← Back to Assistant</a>
+</header>
+<div class="main">
+  <div class="sidebar">
+    <div class="controls">
+      <input type="date" id="date-filter" />
+      <button onclick="loadSessions()">Load</button>
+    </div>
+    <div id="session-list"></div>
+  </div>
+  <div class="detail" id="detail">
+    <div class="empty">Select a session from the left to view details</div>
+  </div>
+</div>
+<script src="/config.js"></script>
+<script>
+const listEl=document.getElementById('session-list'),detailEl=document.getElementById('detail'),dateEl=document.getElementById('date-filter');
+const apiBase=window.APP_CONFIG?.api?.httpEndpoint||'/api/orchestrator';
+
+// Default to today
+dateEl.value=new Date().toISOString().slice(0,10);
+
+async function loadSessions(){
+  const d=dateEl.value;
+  const url=d?`${apiBase}/sessions?date=${d}`:`${apiBase}/sessions`;
+  try{
+    const r=await fetch(url);const data=await r.json();
+    listEl.innerHTML='';
+    if(!data.sessions||!data.sessions.length){listEl.innerHTML='<div style="padding:12px;color:#6b7280;font-size:13px">No sessions found</div>';return}
+    data.sessions.forEach(s=>{
+      const sid=s.key.split('/').pop().replace('.json','');
+      const div=document.createElement('div');
+      div.className='session-item';
+      div.innerHTML=`<div class="sid">${esc(sid)}</div><div class="meta">${new Date(s.modified).toLocaleString()}</div>`;
+      div.onclick=()=>{document.querySelectorAll('.session-item').forEach(e=>e.classList.remove('active'));div.classList.add('active');loadSession(sid,d)};
+      listEl.appendChild(div);
+    });
+  }catch(e){listEl.innerHTML=`<div style="padding:12px;color:#ef4444;font-size:13px">Error: ${e.message}</div>`}
+}
+
+async function loadSession(sid,date){
+  try{
+    const url=date?`${apiBase}/sessions/${sid}?date=${date}`:`${apiBase}/sessions/${sid}`;
+    const r=await fetch(url);const s=await r.json();
+    if(s.error){detailEl.innerHTML=`<div class="empty">${esc(s.error)}</div>`;return}
+    let html=`<h2>Session ${esc(s.id)}</h2><div class="session-meta">Created: ${s.created||'N/A'}</div>`;
+    // Chat history
+    if(s.history&&s.history.length){
+      html+=`<div class="section-label">Chat History</div>`;
+      s.history.forEach(h=>{html+=`<div class="history-item ${h.role==='user'?'user':'ai'}">${h.role==='user'?esc(h.text):renderMd(h.text)}</div>`});
+    }
+    // Tasks
+    if(s.tasks&&s.tasks.length){
+      html+=`<div class="section-label">Tasks (${s.tasks.length})</div>`;
+      s.tasks.forEach((t,i)=>{
+        const st=t.status||'running';
+        const resp=t.result?.response||t.brief||'';
+        html+=`<div class="task-card"><div class="task-card-header" onclick="toggleCard(${i})"><div class="dot ${st}"></div><div class="tname">${esc(t.tool||'task')} — ${st}</div><div class="tid">${esc(t.id)}</div><span class="tchevron" id="chev-${i}">▶</span></div><div class="task-card-body" id="tbody-${i}">`;
+        if(resp)html+=`<div class="task-response">${renderMd(resp)}</div>`;
+        if(t.error)html+=`<div style="color:#ef4444">${esc(t.error)}</div>`;
+        html+=`<div class="timestamps">Started: ${t.started||'N/A'}${t.completed?' · Completed: '+t.completed:''}</div>`;
+        html+=`</div></div>`;
+      });
+    }
+    detailEl.innerHTML=html;
+  }catch(e){detailEl.innerHTML=`<div class="empty">Error: ${e.message}</div>`}
+}
+
+function toggleCard(i){
+  document.getElementById('tbody-'+i)?.classList.toggle('open');
+  document.getElementById('chev-'+i)?.classList.toggle('open');
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function renderMd(text){
+  return esc(text)
+    .replace(/```(\w*)\n([\s\S]*?)```/g,'<pre style="background:#0a1220;padding:10px;border-radius:6px;margin:8px 0;overflow-x:auto;font-size:12px"><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g,'<code style="background:#0a1220;padding:2px 5px;border-radius:3px;font-size:12px">$1</code>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^### (.+)$/gm,'<div style="font-size:14px;font-weight:700;margin:10px 0 4px">$1</div>')
+    .replace(/^## (.+)$/gm,'<div style="font-size:15px;font-weight:700;margin:12px 0 4px">$1</div>')
+    .replace(/^# (.+)$/gm,'<div style="font-size:16px;font-weight:700;margin:14px 0 6px">$1</div>')
+    .replace(/^[*-] (.+)$/gm,'<li style="margin-left:16px">$1</li>')
+    .replace(/^\d+\. (.+)$/gm,'<li style="margin-left:16px;list-style-type:decimal">$1</li>')
+    .replace(/^---$/gm,'<hr style="border:none;border-top:1px solid #555;margin:8px 0">')
+    .replace(/\n\n/g,'<br/><br/>').replace(/\n/g,'<br/>');
+}
+
+loadSessions();
+</script>
+</body>
+</html>
