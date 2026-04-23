@@ -1,5 +1,5 @@
 """AgentCore wrapper: BedrockAgentCoreApp SDK + Kiro CLI ACP with async task management."""
-import json, os, subprocess, threading, queue, logging, urllib.request
+import json, os, subprocess, threading, queue, logging, urllib.request, re
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 logging.basicConfig(level=logging.INFO)
@@ -9,6 +9,50 @@ app = BedrockAgentCoreApp()
 
 # Store completed results by task_id
 results = {}
+
+INTEGRATION_PROFILE = os.getenv("INTEGRATION_PROFILE", "/app/profiles/default.json")
+
+
+def load_integration_profile():
+    """Load integration profile and return list of MCP server configs."""
+    path = INTEGRATION_PROFILE
+    if not path:
+        return []
+    try:
+        if path.startswith("s3://"):
+            import boto3
+            parts = path[5:].split("/", 1)
+            obj = boto3.client("s3").get_object(Bucket=parts[0], Key=parts[1])
+            profile = json.loads(obj["Body"].read())
+        else:
+            with open(path) as f:
+                profile = json.load(f)
+    except Exception as e:
+        logger.warning(f"Failed to load profile {path}: {e}")
+        return []
+
+    mcp_servers = []
+    for integ in profile.get("integrations", []):
+        if not integ.get("enabled"):
+            continue
+        name = integ.get("name", "unknown")
+        required = integ.get("required_env", [])
+        missing = [v for v in required if not os.environ.get(v)]
+        if missing:
+            logger.warning(f"Skipping {name}: missing env vars {missing}")
+            continue
+        server = integ.get("mcp_server", {})
+        # Resolve ${VAR} references in env
+        resolved_env = {}
+        for k, v in server.get("env", {}).items():
+            resolved_env[k] = re.sub(r'\$\{(\w+)\}', lambda m: os.environ.get(m.group(1), ''), v)
+        mcp_servers.append({
+            "command": server.get("command", ""),
+            "args": server.get("args", []),
+            "env": resolved_env,
+        })
+        logger.info(f"Integration enabled: {name}")
+    return mcp_servers
 
 
 def fetch_credentials():
@@ -57,11 +101,11 @@ class KiroACP:
         threading.Thread(target=self._read, daemon=True).start()
         threading.Thread(target=self._log_stderr, daemon=True).start()
         self._call("initialize", {"protocolVersion": 1, "clientCapabilities": {}, "clientInfo": {"name": "agentcore", "version": "0.1"}})
-        # Start without MCP for fast init
-        r = self._call("session/new", {"cwd": "/tmp", "mcpServers": []})
+        mcp_servers = load_integration_profile()
+        r = self._call("session/new", {"cwd": "/tmp", "mcpServers": mcp_servers})
         self.session_id = r.get("result", {}).get("sessionId", "")
         self.ready = True
-        logger.info(f"ACP ready, session={self.session_id}")
+        logger.info(f"ACP ready, session={self.session_id}, integrations={len(mcp_servers)}")
 
     def _log_stderr(self):
         for line in self.proc.stderr:

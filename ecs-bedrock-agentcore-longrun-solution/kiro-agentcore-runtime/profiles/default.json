@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "integrations": [
+    {
+      "name": "aws-api",
+      "enabled": true,
+      "mcp_server": {
+        "command": "uvx",
+        "args": ["--from", "awslabs.aws-api-mcp-server@latest", "awslabs.aws-api-mcp-server"],
+        "env": {}
+      },
+      "required_env": [],
+      "description": "AWS API access — uses container IAM role"
+    }
+  ]
+}

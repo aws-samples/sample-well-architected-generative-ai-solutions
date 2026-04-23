@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir bedrock-agentcore "awslabs.aws-api-mcp-server"
 
 # Copy the HTTP/ACP wrapper
 COPY wrapper.py /app/wrapper.py
+COPY profiles/ /app/profiles/
 
 ENV PORT=8080 PYTHONUNBUFFERED=1
 EXPOSE 8080
