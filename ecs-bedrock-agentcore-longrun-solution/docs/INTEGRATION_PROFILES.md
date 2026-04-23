@@ -121,10 +121,19 @@ This way:
 
 ## Runtime Behavior
 
-At startup (`wrapper.py`):
+At deployment time (`deploy_runtime.sh`):
 
 ```
-1. Read INTEGRATION_PROFILE (from S3 or local file)
+1. Read profile JSON
+2. Extract pip packages from enabled integrations
+3. Generate Dockerfile with pre-installed packages
+4. Build image → push to ECR → (optionally refresh runtime)
+```
+
+At container startup (`wrapper.py`):
+
+```
+1. Read INTEGRATION_PROFILE (baked into image or from S3)
 2. For each integration where enabled=true:
    a. Check required_env vars are present
    b. Resolve ${VAR} references in mcp_server.env
@@ -132,6 +141,34 @@ At startup (`wrapper.py`):
 3. Pass mcpServers to kiro-cli session/new
 4. Agent now has access to all configured tools
 ```
+
+All MCP server packages are pre-installed in the image — no downloads at startup, fast cold start.
+
+## Deploy Pipeline
+
+```bash
+# Default profile (AWS only)
+./deploy_runtime.sh
+
+# Custom profile
+./deploy_runtime.sh --profile profiles/dev-team.json
+
+# Local Docker build (instead of CodeBuild)
+LOCAL_BUILD=true ./deploy_runtime.sh
+```
+
+The script:
+1. **Validates** the profile — checks JSON, lists enabled integrations
+2. **Generates** a Dockerfile with `pip install` for all enabled packages
+3. **Builds** via CodeBuild (ARM64) or local Docker
+4. **Pushes** to ECR
+
+### Adding a New Integration
+
+1. Add entry to profile JSON (name, package, mcp_server, required_env)
+2. Run `./deploy_runtime.sh --profile profiles/your-profile.json`
+3. Set credential env vars on the runtime
+4. Done — no manual Dockerfile editing
 
 ## Example Profiles
 
