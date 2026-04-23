@@ -153,6 +153,10 @@ function addChat(cls,text){
 }
 
 // Bind a real task_id to a pending placeholder, or create new if none pending
+function toDomTaskId(id){
+  return encodeURIComponent(String(id));
+}
+
 function resolveTask(id,status,text,data){
   let t;
   if(tasks[id]){
@@ -167,8 +171,15 @@ function resolveTask(id,status,text,data){
     t={...old,status:'running'};
     tasks[id]=t;
     // swap DOM id
-    const el=document.getElementById('task-'+pId);
-    if(el){el.id='task-'+id;el.querySelector('.task-row').setAttribute('onclick',`toggleTask('${id}')`)}
+    const el=document.getElementById('task-'+toDomTaskId(pId));
+    if(el){
+      el.id='task-'+toDomTaskId(id);
+      const row=el.querySelector('.task-row');
+      if(row){
+        row.onclick=null;
+        row.addEventListener('click',()=>toggleTask(String(id)));
+      }
+    }
   }else{
     // no pending placeholder — create fresh
     t={status:'running',name:'Task',text:'',data:null};
@@ -184,8 +195,36 @@ function resolveTask(id,status,text,data){
 function renderTaskItem(id){
   const t=tasks[id];
   const item=document.createElement('div');
-  item.className='task-item';item.id='task-'+id;
-  item.innerHTML=`<div class="task-row" onclick="toggleTask('${id}')"><div class="task-icon"><div class="spinner"></div></div><div class="task-label">${esc(t.name)} (...)</div><span class="task-chevron">▶</span></div><div class="task-body"></div>`;
+  item.className='task-item';
+  item.id='task-'+toDomTaskId(id);
+
+  const row=document.createElement('div');
+  row.className='task-row';
+  row.addEventListener('click',()=>toggleTask(String(id)));
+
+  const icon=document.createElement('div');
+  icon.className='task-icon';
+  const spinner=document.createElement('div');
+  spinner.className='spinner';
+  icon.appendChild(spinner);
+
+  const label=document.createElement('div');
+  label.className='task-label';
+  label.textContent=`${t.name} (...)`;
+
+  const chevron=document.createElement('span');
+  chevron.className='task-chevron';
+  chevron.textContent='▶';
+
+  const body=document.createElement('div');
+  body.className='task-body';
+
+  row.appendChild(icon);
+  row.appendChild(label);
+  row.appendChild(chevron);
+  item.appendChild(row);
+  item.appendChild(body);
+
   taskListEl.prepend(item);
   updateCount();
   if(panel.classList.contains('collapsed'))togglePanel();
