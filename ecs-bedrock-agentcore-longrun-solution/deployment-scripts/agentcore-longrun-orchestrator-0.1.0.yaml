@@ -424,7 +424,7 @@ Resources:
     Type: AWS::BedrockAgentCore::Runtime
     DependsOn: AgentBuildProject
     Properties:
-      AgentRuntimeName: !Sub '${AWS::StackName}_agent'
+      AgentRuntimeName: !Join ['_', !Split ['-', !Sub '${AWS::StackName}_agent']]
       Description: Kiro CLI agent runtime for Cloud Operations Assistant
       RoleArn: !GetAtt AgentCoreRuntimeRole.Arn
       AgentRuntimeArtifact:
