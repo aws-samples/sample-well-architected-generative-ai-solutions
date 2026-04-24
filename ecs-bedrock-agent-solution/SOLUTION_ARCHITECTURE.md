@@ -112,7 +112,7 @@ Configuration Flow:
 
 ## Technology Stack
 
-- **Runtime**: Python 3.11 on Amazon Linux 2023
+- **Runtime**: Python 3.12 on Amazon Linux 2023
 - **Framework**: FastAPI + Uvicorn
 - **Frontend**: React 18 + Vite + CloudScape Design System
 - **Auth**: Amazon Cognito

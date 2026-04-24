@@ -147,7 +147,7 @@ Each agent runs as a separate container with:
 
 ## Technology Stack
 
-- **Runtime**: Python 3.11 on Amazon Linux 2023
+- **Runtime**: Python 3.12 on Amazon Linux 2023
 - **Framework**: FastAPI + Uvicorn
 - **Frontend**: Vanilla HTML/JS/CSS with prompt template system
 - **Auth**: Amazon Cognito

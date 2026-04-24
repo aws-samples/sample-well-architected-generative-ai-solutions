@@ -134,7 +134,7 @@ The wrapper:
 
 ## Technology Stack
 
-- **Runtime**: Python 3.11 (orchestrator), Python 3.12 (AgentCore runtime) on Amazon Linux 2023
+- **Runtime**: Python 3.12 on Amazon Linux 2023
 - **Framework**: FastAPI + Uvicorn + WebSocket
 - **Frontend**: React 18 + Vite + CloudScape Design System
 - **Auth**: Amazon Cognito
