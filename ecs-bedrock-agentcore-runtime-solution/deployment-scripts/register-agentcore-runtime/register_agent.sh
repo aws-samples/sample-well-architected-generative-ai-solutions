@@ -29,13 +29,10 @@ DEFAULT_REGION="us-east-1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INTERACTIVE_SCRIPT="$SCRIPT_DIR/interactive_agent_registration.py"
 
-# Source global configuration
+# Source global configuration (optional)
 CONFIG_LOADER="$SCRIPT_DIR/../utils/load_config.sh"
 if [ -f "$CONFIG_LOADER" ]; then
     source "$CONFIG_LOADER"
-else
-    print_error "Global configuration loader not found: $CONFIG_LOADER"
-    exit 1
 fi
 
 # Helper functions
