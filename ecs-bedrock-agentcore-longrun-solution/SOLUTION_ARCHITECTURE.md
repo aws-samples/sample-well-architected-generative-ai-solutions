@@ -50,7 +50,7 @@ An async conversational orchestrator that dispatches long-running tasks to Bedro
 │                                             │                                 │
 │                                             ▼                                 │
 │  ┌──────────────────────────────────────────────────────────────────────┐    │
-│  │  ECS Fargate — AgentCore Runtime Service                              │    │
+│  │  Bedrock AgentCore Runtime                                            │    │
 │  │                                                                        │    │
 │  │  ┌──────────────────────────────────────────────────────────────────┐  │    │
 │  │  │  Kiro CLI + MCP Wrapper (wrapper.py)                             │  │    │
