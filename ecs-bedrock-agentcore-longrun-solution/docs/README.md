@@ -52,7 +52,7 @@ AI:   [full detail response]
 
 - AWS Account with Bedrock access
 - A deployed AgentCore Runtime (ARN required)
-- Python 3.11+
+- Python 3.12+
 - Docker (for container builds)
 
 ## Deployment
