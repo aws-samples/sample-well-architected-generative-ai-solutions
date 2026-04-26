@@ -5,6 +5,26 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def resolve_ssm_secrets():
+    """Resolve env vars from SSM Parameter Store. Any env var ending in _SSM_PARAM
+    will be fetched and set as the base name. e.g. KIRO_API_KEY_SSM_PARAM=/path/to/key
+    sets KIRO_API_KEY to the parameter value."""
+    import boto3
+    ssm = boto3.client("ssm", region_name=os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-west-2")))
+    for k, v in list(os.environ.items()):
+        if k.endswith("_SSM_PARAM") and v:
+            target = k[:-10]  # strip _SSM_PARAM
+            try:
+                resp = ssm.get_parameter(Name=v, WithDecryption=True)
+                os.environ[target] = resp["Parameter"]["Value"]
+                logger.info(f"Resolved {target} from SSM {v}")
+            except Exception as e:
+                logger.warning(f"Failed to resolve {target} from SSM {v}: {e}")
+
+
+resolve_ssm_secrets()
+
 app = BedrockAgentCoreApp()
 
 # Store completed results by task_id
