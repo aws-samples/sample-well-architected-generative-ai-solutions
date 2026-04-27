@@ -583,5 +583,3 @@ cloud-optimization-web-interfaces/cloud-optimization-web-interface/frontend/conf
 # Frontend build artifacts
 ecs-bedrock-agent-solution/frontend/node_modules/
 ecs-bedrock-agent-solution/frontend/dist/
-
-.aws*sh

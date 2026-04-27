@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AgentCore Long-Running Orchestrator - ECS + Bedrock AgentCore Runtime (v0.1.0)'
+Description: 'AgentCore Long-Running Orchestrator - ECS + Bedrock AgentCore Runtime (v0.1.1)'
 
 Parameters:
   Environment:
@@ -9,10 +9,10 @@ Parameters:
   SourceBucket:
     Type: String
     Description: S3 bucket for source code
-  KiroApiKey:
+  KiroApiKeySSMParam:
     Type: String
-    Description: Kiro CLI API key for the AgentCore runtime
-    NoEcho: true
+    Default: ''
+    Description: SSM Parameter Store path for Kiro API key (SecureString)
   BedrockRegion:
     Type: String
     Default: us-west-2
@@ -26,6 +26,24 @@ Parameters:
     Default: 'false'
     AllowedValues: ['true', 'false']
     Description: Restrict agent to read-only operations (for demo/sandbox)
+  BackendImage:
+    Type: String
+    Default: 'public.ecr.aws/nginx/nginx:alpine'
+    Description: Backend container image URI (use placeholder for initial deploy)
+  AgentCoreRuntimeArn:
+    Type: String
+    Default: ''
+    Description: Existing AgentCore Runtime ARN (leave empty to create new one)
+  CreateAgentCoreRuntime:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Set to true to create AgentCore Runtime (requires agent image in ECR)
+
+Conditions:
+  ShouldCreateRuntime: !Equals [!Ref CreateAgentCoreRuntime, 'true']
+  HasRuntimeArn: !Not [!Equals [!Ref AgentCoreRuntimeArn, '']]
+  UsingPlaceholderImage: !Equals [!Ref BackendImage, 'public.ecr.aws/nginx/nginx:alpine']
 
 Resources:
   # Cognito
@@ -131,6 +149,10 @@ Resources:
           FromPort: 8000
           ToPort: 8000
           SourceSecurityGroupId: !Ref ALBSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
 
   # ECS
   ECSCluster:
@@ -150,6 +172,22 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ECRPull
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource:
+                  - !GetAtt BackendECRRepo.Arn
 
   TaskRole:
     Type: AWS::IAM::Role
@@ -169,7 +207,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - bedrock-agentcore:InvokeAgentRuntime
-                Resource: !GetAtt AgentCoreRuntime.AgentRuntimeArn
+                Resource: !Sub 'arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/*'
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
@@ -188,12 +226,15 @@ Resources:
       TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
         - Name: orchestrator
-          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}-repo:latest'
+          Image: !Ref BackendImage
           PortMappings:
-            - ContainerPort: 8000
+            - ContainerPort: !If [UsingPlaceholderImage, 80, 8000]
           Environment:
             - Name: AGENTCORE_RUNTIME_ARN
-              Value: !GetAtt AgentCoreRuntime.AgentRuntimeArn
+              Value: !If
+                - ShouldCreateRuntime
+                - !GetAtt AgentCoreRuntime.AgentRuntimeArn
+                - !Ref AgentCoreRuntimeArn
             - Name: BEDROCK_REGION
               Value: !Ref BedrockRegion
             - Name: AGENTCORE_REGION
@@ -226,11 +267,12 @@ Resources:
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Port: 8000
+      Port: !If [UsingPlaceholderImage, 80, 8000]
       Protocol: HTTP
       VpcId: !Ref VPC
       TargetType: ip
-      HealthCheckPath: /health
+      HealthCheckPath: !If [UsingPlaceholderImage, '/', '/health']
+      HealthCheckPort: !If [UsingPlaceholderImage, '80', '8000']
       TargetGroupAttributes:
         - Key: stickiness.enabled
           Value: 'true'
@@ -255,6 +297,12 @@ Resources:
       TaskDefinition: !Ref TaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets: [!Ref PublicSubnet1, !Ref PublicSubnet2]
@@ -262,8 +310,18 @@ Resources:
           AssignPublicIp: ENABLED
       LoadBalancers:
         - ContainerName: orchestrator
-          ContainerPort: 8000
+          ContainerPort: !If [UsingPlaceholderImage, 80, 8000]
           TargetGroupArn: !Ref TargetGroup
+
+  # ECR Repos
+  BackendECRRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub '${AWS::StackName}-backend'
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
 
   # CloudFront
   StaticBucket:
@@ -304,6 +362,13 @@ Resources:
             DefaultTTL: 0
             MaxTTL: 0
             MinTTL: 0
+          - PathPattern: '/health'
+            TargetOriginId: ALBOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            ForwardedValues:
+              QueryString: false
+            DefaultTTL: 0
           - PathPattern: '/ws'
             TargetOriginId: ALBOrigin
             ViewerProtocolPolicy: redirect-to-https
@@ -313,17 +378,8 @@ Resources:
               Headers: ['*']
             DefaultTTL: 0
 
-  # Agent Container Build Pipeline
-  AgentECRRepo:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: !Sub '${AWS::StackName}-agent'
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      LifecyclePolicy:
-        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
-
-  AgentBuildRole:
+  # Backend Build Pipeline
+  BackendBuildRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -334,7 +390,7 @@ Resources:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: AgentBuildPolicy
+        - PolicyName: BackendBuildPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -351,7 +407,9 @@ Resources:
                   - ecr:InitiateLayerUpload
                   - ecr:UploadLayerPart
                   - ecr:CompleteLayerUpload
-                Resource: !GetAtt AgentECRRepo.Arn
+                Resource:
+                  - !GetAtt BackendECRRepo.Arn
+                  - !GetAtt AgentECRRepo.Arn
               - Effect: Allow
                 Action:
                   - s3:GetObject
@@ -363,11 +421,46 @@ Resources:
                   - logs:PutLogEvents
                 Resource: '*'
 
+  BackendBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AWS::StackName}-backend-build'
+      ServiceRole: !GetAtt BackendBuildRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: REPOSITORY_URI
+            Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BackendECRRepo}'
+          - Name: AWS_ACCOUNT_ID
+            Value: !Ref AWS::AccountId
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+      Source:
+        Type: S3
+        Location: !Sub '${SourceBucket}/backend-source.zip'
+        BuildSpec: deployment-scripts/buildspecs/backend-buildspec.yml
+      TimeoutInMinutes: 15
+
+  # Agent Container Build Pipeline
+  AgentECRRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub '${AWS::StackName}-agent'
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
+
   AgentBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: !Sub '${AWS::StackName}-agent-build'
-      ServiceRole: !GetAtt AgentBuildRole.Arn
+      ServiceRole: !GetAtt BackendBuildRole.Arn
       Artifacts:
         Type: NO_ARTIFACTS
       Environment:
@@ -386,9 +479,10 @@ Resources:
         BuildSpec: deployment-scripts/buildspecs/agent-buildspec.yml
       TimeoutInMinutes: 15
 
-  # AgentCore Runtime
+  # AgentCore Runtime (conditional)
   AgentCoreRuntimeRole:
     Type: AWS::IAM::Role
+    Condition: ShouldCreateRuntime
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -419,12 +513,17 @@ Resources:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sandbox-longrun*'
 
   AgentCoreRuntime:
     Type: AWS::BedrockAgentCore::Runtime
+    Condition: ShouldCreateRuntime
     DependsOn: AgentBuildProject
     Properties:
-      AgentRuntimeName: !Sub '${AWS::StackName}_agent'
+      AgentRuntimeName: !Join ['_', !Split ['-', !Sub '${AWS::StackName}_agent']]
       Description: Kiro CLI agent runtime for Cloud Operations Assistant
       RoleArn: !GetAtt AgentCoreRuntimeRole.Arn
       AgentRuntimeArtifact:
@@ -434,7 +533,7 @@ Resources:
         NetworkMode: PUBLIC
       ProtocolConfiguration: HTTP
       EnvironmentVariables:
-        KIRO_API_KEY: !Ref KiroApiKey
+        KIRO_API_KEY_SSM_PARAM: !Ref KiroApiKeySSMParam
 
   # Frontend Build Pipeline
   FrontendBuildRole:
@@ -508,7 +607,18 @@ Outputs:
     Value: !Ref UserPoolClient
   StaticBucket:
     Value: !Ref StaticBucket
-  AgentCoreRuntimeArn:
-    Value: !GetAtt AgentCoreRuntime.AgentRuntimeArn
+  BackendECRRepo:
+    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BackendECRRepo}'
   AgentECRRepo:
     Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AgentECRRepo}'
+  AgentCoreRuntimeArn:
+    Condition: ShouldCreateRuntime
+    Value: !GetAtt AgentCoreRuntime.AgentRuntimeArn
+  BackendBuildProject:
+    Value: !Ref BackendBuildProject
+  AgentBuildProject:
+    Value: !Ref AgentBuildProject
+  ECSCluster:
+    Value: !Ref ECSCluster
+  ECSService:
+    Value: !GetAtt ECSService.Name

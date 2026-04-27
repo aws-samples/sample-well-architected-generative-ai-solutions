@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "integrations": [
+    {
+      "name": "aws-api",
+      "enabled": true,
+      "package": "awslabs.aws-api-mcp-server",
+      "mcp_server": {
+        "command": "python3",
+        "args": ["-m", "awslabs.aws_api_mcp_server"],
+        "env": {}
+      },
+      "required_env": [],
+      "description": "AWS API access — uses container IAM role"
+    }
+  ]
+}

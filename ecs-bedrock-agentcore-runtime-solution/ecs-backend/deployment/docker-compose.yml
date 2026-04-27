@@ -1,5 +1,7 @@
 # COA AgentCore Runtime Docker Compose Configuration
 
+version: '3.8'
+
 services:
   coa-agentcore:
     build:
