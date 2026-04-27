@@ -144,23 +144,38 @@ The wrapper:
 
 ## Deployment
 
+The stack is fully self-contained — all resources are managed by CloudFormation with zero external dependencies.
+
 ```bash
 cd deployment-scripts
 python3 deploy.py \
   --stack-name agentcore-longrun \
   --region us-west-2 \
-  --runtime-arn arn:aws:bedrock-agentcore:us-west-2:ACCOUNT:runtime/RUNTIME_ID
+  --environment dev \
+  --demo-mask-output true \
+  --demo-read-only true
+```
+
+Deploy phases: `infra` → `build` → `update` (or `all` for full deploy).
+
+After deployment, set the API key:
+```bash
+aws ssm put-parameter \
+  --name /agentcore-longrun/kiro-api-key \
+  --value "your-api-key" \
+  --type SecureString --overwrite
 ```
 
 The CloudFormation template (`agentcore-longrun-orchestrator-0.1.0.yaml`) provisions:
-- VPC with public subnets
-- ECS Fargate cluster with two services (orchestrator + runtime)
-- ALB with WebSocket support
-- CloudFront distribution
-- S3 bucket for frontend
-- Cognito User Pool
-- CodeBuild projects (backend, frontend, agent)
-- IAM roles for ECS tasks and Bedrock access
+- VPC with 2 public subnets, IGW, route table
+- ECS Fargate cluster + service + task definition
+- ALB with WebSocket support + CloudFront distribution
+- S3 buckets: static assets, source code, task logs
+- Cognito User Pool + client
+- 3 CodeBuild projects (backend, frontend, agent)
+- Bedrock AgentCore Runtime (conditional)
+- SSM Parameter for Kiro API key
+- IAM roles for ECS tasks, builds, and AgentCore
 
 ## Environment Variables
 
@@ -174,6 +189,7 @@ The CloudFormation template (`agentcore-longrun-orchestrator-0.1.0.yaml`) provis
 | `MODEL_ID` | Bedrock model for intent parsing | `anthropic.claude-3-haiku-20240307-v1:0` |
 | `DEMO_READ_ONLY` | Restrict to read-only operations | `false` |
 | `DEMO_MASK_OUTPUT` | Mask resource IDs in output | `false` |
+| `TASK_LOG_BUCKET` | S3 bucket for session/task logging | (set by CFN) |
 | `PORT` | Server port | `8000` |
 
 ### AgentCore Runtime
@@ -182,6 +198,19 @@ The CloudFormation template (`agentcore-longrun-orchestrator-0.1.0.yaml`) provis
 |----------|-------------|---------|
 | `PORT` | HTTP port for ACP wrapper | `8080` |
 | `AWS_DEFAULT_REGION` | AWS region | `us-west-2` |
+
+## Task Logging
+
+Sessions and task results are persisted to S3 automatically:
+
+- **Trigger**: On task completion and WebSocket disconnect
+- **Storage**: `s3://{stack}-logs-{account}/sessions/{date}/{session_id}.json`
+- **Viewer**: `https://{cloudfront}/task-log.html`
+- **API**:
+  - `GET /api/orchestrator/sessions?date=YYYY-MM-DD` — list sessions
+  - `GET /api/orchestrator/sessions/{id}` — fetch session detail
+
+Each session JSON contains chat history, task list with status/timing, and full results.
 
 ## Local Development
 

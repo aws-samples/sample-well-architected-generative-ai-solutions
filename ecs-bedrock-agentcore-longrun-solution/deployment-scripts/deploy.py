@@ -2,7 +2,6 @@
 """Deploy the AgentCore Long-Running Orchestrator stack (multi-phase)."""
 import argparse
 import boto3
-import json
 import os
 import sys
 import time
@@ -15,26 +14,11 @@ def get_args():
     parser.add_argument("--stack-name", default="agentcore-longrun", help="CloudFormation stack name")
     parser.add_argument("--region", default="us-west-2", help="AWS region")
     parser.add_argument("--environment", default="prod", choices=["dev", "staging", "prod"])
-    parser.add_argument("--kiro-api-key-ssm-param", default="", help="SSM Parameter Store path for Kiro API key")
     parser.add_argument("--demo-mask-output", default="false", choices=["true", "false"])
     parser.add_argument("--demo-read-only", default="false", choices=["true", "false"])
     parser.add_argument("--phase", default="all", choices=["infra", "build", "update", "all"],
                         help="infra=create stack with placeholder, build=build images, update=switch to real image, all=full deploy")
     return parser.parse_args()
-
-
-def create_source_bucket(stack_name, region):
-    s3 = boto3.client("s3", region_name=region)
-    account = boto3.client("sts", region_name=region).get_caller_identity()["Account"]
-    bucket = f"{stack_name}-source-{account}-{region}"
-    try:
-        if region == "us-east-1":
-            s3.create_bucket(Bucket=bucket)
-        else:
-            s3.create_bucket(Bucket=bucket, CreateBucketConfiguration={"LocationConstraint": region})
-    except s3.exceptions.BucketAlreadyOwnedByYou:
-        pass
-    return bucket
 
 
 def upload_source(source_bucket, region):
@@ -62,7 +46,7 @@ def upload_source(source_bucket, region):
             print(f"  Uploaded {name} to s3://{source_bucket}/{name}")
 
 
-def deploy_stack(stack_name, region, source_bucket, args, backend_image="public.ecr.aws/nginx/nginx:alpine",
+def deploy_stack(stack_name, region, args, backend_image="public.ecr.aws/nginx/nginx:alpine",
                  create_runtime=False, runtime_arn=""):
     cfn = boto3.client("cloudformation", region_name=region)
     template_path = os.path.join(os.path.dirname(__file__), "agentcore-longrun-orchestrator-0.1.0.yaml")
@@ -70,13 +54,11 @@ def deploy_stack(stack_name, region, source_bucket, args, backend_image="public.
         template_body = f.read()
 
     params = [
-        {"ParameterKey": "SourceBucket", "ParameterValue": source_bucket},
         {"ParameterKey": "Environment", "ParameterValue": args.environment},
         {"ParameterKey": "BedrockRegion", "ParameterValue": region},
         {"ParameterKey": "BackendImage", "ParameterValue": backend_image},
         {"ParameterKey": "CreateAgentCoreRuntime", "ParameterValue": "true" if create_runtime else "false"},
         {"ParameterKey": "AgentCoreRuntimeArn", "ParameterValue": runtime_arn},
-        {"ParameterKey": "KiroApiKeySSMParam", "ParameterValue": args.kiro_api_key_ssm_param},
         {"ParameterKey": "DemoMaskOutput", "ParameterValue": args.demo_mask_output},
         {"ParameterKey": "DemoReadOnly", "ParameterValue": args.demo_read_only},
     ]
@@ -108,6 +90,12 @@ def deploy_stack(stack_name, region, source_bucket, args, backend_image="public.
     print("Waiting for stack operation to complete...")
     waiter.wait(StackName=stack_name, WaiterConfig={"Delay": 15, "MaxAttempts": 80})
 
+    outputs = cfn.describe_stacks(StackName=stack_name)["Stacks"][0].get("Outputs", [])
+    return {o["OutputKey"]: o["OutputValue"] for o in outputs}
+
+
+def get_stack_outputs(stack_name, region):
+    cfn = boto3.client("cloudformation", region_name=region)
     outputs = cfn.describe_stacks(StackName=stack_name)["Stacks"][0].get("Outputs", [])
     return {o["OutputKey"]: o["OutputValue"] for o in outputs}
 
@@ -159,22 +147,20 @@ def main():
     region = args.region
     print(f"Deploying {stack_name} to {region} (phase: {args.phase})")
 
-    source_bucket = create_source_bucket(stack_name, region)
-
     if args.phase in ("infra", "all"):
         print("\n=== Phase 1: Deploy infrastructure with placeholder image ===")
-        upload_source(source_bucket, region)
-        outputs = deploy_stack(stack_name, region, source_bucket, args)
+        outputs = deploy_stack(stack_name, region, args)
+        source_bucket = outputs["SourceBucket"]
         print("\nStack outputs:")
         for k, v in outputs.items():
             print(f"  {k}: {v}")
+        print("\n  Uploading source code...")
+        upload_source(source_bucket, region)
         deploy_frontend(outputs, region)
 
     if args.phase in ("build", "all"):
+        outputs = get_stack_outputs(stack_name, region)
         print("\n=== Phase 2: Build backend image ===")
-        cfn = boto3.client("cloudformation", region_name=region)
-        outputs = {o["OutputKey"]: o["OutputValue"]
-                   for o in cfn.describe_stacks(StackName=stack_name)["Stacks"][0].get("Outputs", [])}
         if not run_codebuild(outputs["BackendBuildProject"], region):
             print("ERROR: Backend build failed!")
             sys.exit(1)
@@ -186,13 +172,10 @@ def main():
 
     if args.phase in ("update", "all"):
         print("\n=== Phase 4: Update ECS with real backend image ===")
-        cfn = boto3.client("cloudformation", region_name=region)
-        outputs = {o["OutputKey"]: o["OutputValue"]
-                   for o in cfn.describe_stacks(StackName=stack_name)["Stacks"][0].get("Outputs", [])}
+        outputs = get_stack_outputs(stack_name, region)
         backend_image = f"{outputs['BackendECRRepo']}:latest"
-        outputs = deploy_stack(stack_name, region, source_bucket, args,
-                               backend_image=backend_image, create_runtime=bool(args.kiro_api_key_ssm_param),
-                               runtime_arn="")
+        outputs = deploy_stack(stack_name, region, args,
+                               backend_image=backend_image, create_runtime=True)
         print("\nFinal stack outputs:")
         for k, v in outputs.items():
             print(f"  {k}: {v}")

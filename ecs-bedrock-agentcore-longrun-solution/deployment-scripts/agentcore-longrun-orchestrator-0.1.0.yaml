@@ -6,13 +6,6 @@ Parameters:
     Type: String
     Default: prod
     AllowedValues: [dev, staging, prod]
-  SourceBucket:
-    Type: String
-    Description: S3 bucket for source code
-  KiroApiKeySSMParam:
-    Type: String
-    Default: ''
-    Description: SSM Parameter Store path for Kiro API key (SecureString)
   BedrockRegion:
     Type: String
     Default: us-west-2
@@ -213,6 +206,14 @@ Resources:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt TaskLogBucket.Arn
+                  - !Sub '${TaskLogBucket.Arn}/*'
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -243,6 +244,8 @@ Resources:
               Value: !Ref DemoMaskOutput
             - Name: DEMO_READ_ONLY
               Value: !Ref DemoReadOnly
+            - Name: TASK_LOG_BUCKET
+              Value: !Ref TaskLogBucket
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -322,6 +325,17 @@ Resources:
         ScanOnPush: true
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
+
+  # S3 Buckets
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-source-${AWS::AccountId}-${AWS::Region}'
+
+  TaskLogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-logs-${AWS::AccountId}'
 
   # CloudFront
   StaticBucket:
@@ -516,7 +530,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
-                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sandbox-longrun*'
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/*'
 
   AgentCoreRuntime:
     Type: AWS::BedrockAgentCore::Runtime
@@ -533,7 +547,7 @@ Resources:
         NetworkMode: PUBLIC
       ProtocolConfiguration: HTTP
       EnvironmentVariables:
-        KIRO_API_KEY_SSM_PARAM: !Ref KiroApiKeySSMParam
+        KIRO_API_KEY_SSM_PARAM: !Ref KiroApiKey
 
   # Frontend Build Pipeline
   FrontendBuildRole:
@@ -596,6 +610,15 @@ Resources:
         BuildSpec: deployment-scripts/buildspecs/frontend-buildspec.yml
       TimeoutInMinutes: 10
 
+  # SSM Parameter for Kiro API Key
+  KiroApiKey:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/${AWS::StackName}/kiro-api-key'
+      Type: String
+      Value: PLACEHOLDER
+      Description: Kiro API key — update value manually via console or CLI after stack creation
+
 Outputs:
   CloudFrontURL:
     Value: !Sub 'https://${Distribution.DomainName}'
@@ -622,3 +645,7 @@ Outputs:
     Value: !Ref ECSCluster
   ECSService:
     Value: !GetAtt ECSService.Name
+  SourceBucket:
+    Value: !Ref SourceBucket
+  KiroApiKeySSMParam:
+    Value: !Ref KiroApiKey
