@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Task Memory — DynamoDB table for user-scoped task records (v1.0)'
+
+Parameters:
+  TableName:
+    Type: String
+    Default: ''
+    Description: DynamoDB table name (defaults to {StackName}-tasks)
+  TTLEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable TTL auto-expiry on task records
+
+Conditions:
+  HasCustomName: !Not [!Equals [!Ref TableName, '']]
+  EnableTTL: !Equals [!Ref TTLEnabled, 'true']
+
+Resources:
+  TaskTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !If [HasCustomName, !Ref TableName, !Sub '${AWS::StackName}-tasks']
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user
+          AttributeType: S
+        - AttributeName: task_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user
+          KeyType: HASH
+        - AttributeName: task_id
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: !If [EnableTTL, true, false]
+
+Outputs:
+  TaskTableName:
+    Value: !Ref TaskTable
+    Description: DynamoDB table name — set as TASK_TABLE_NAME env var
+  TaskTableArn:
+    Value: !GetAtt TaskTable.Arn
+    Description: Table ARN for IAM policy
+  IntegrationNote:
+    Value: !Sub 'Set env var TASK_TABLE_NAME=${TaskTable} in your ECS task or Lambda'

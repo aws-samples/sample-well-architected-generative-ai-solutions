@@ -1,0 +1,19 @@
+version: 0.2
+env:
+  variables:
+    ECR_REPO: "256358067059.dkr.ecr.us-west-2.amazonaws.com/kiro-agentcore"
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to ECR
+      - aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 256358067059.dkr.ecr.us-west-2.amazonaws.com
+      - aws ecr create-repository --repository-name kiro-agentcore --region us-west-2 || echo repo exists
+  build:
+    commands:
+      - echo Building ARM64 Docker image with kiro-cli installer
+      - docker build -t $ECR_REPO:latest .
+  post_build:
+    commands:
+      - echo Pushing to ECR
+      - docker push $ECR_REPO:latest
+      - echo "Done"

@@ -214,6 +214,15 @@ Resources:
                 Resource:
                   - !GetAtt TaskLogBucket.Arn
                   - !Sub '${TaskLogBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:DeleteItem
+                Resource:
+                  - !GetAtt TaskTable.Arn
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -246,6 +255,8 @@ Resources:
               Value: !Ref DemoReadOnly
             - Name: TASK_LOG_BUCKET
               Value: !Ref TaskLogBucket
+            - Name: TASK_TABLE_NAME
+              Value: !Ref TaskTable
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -325,6 +336,26 @@ Resources:
         ScanOnPush: true
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
+
+  # DynamoDB — Task Memory
+  TaskTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-tasks'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user
+          AttributeType: S
+        - AttributeName: task_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user
+          KeyType: HASH
+        - AttributeName: task_id
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   # S3 Buckets
   SourceBucket:
@@ -649,3 +680,5 @@ Outputs:
     Value: !Ref SourceBucket
   KiroApiKeySSMParam:
     Value: !Ref KiroApiKey
+  TaskTableName:
+    Value: !Ref TaskTable

@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AgentCore Memory Solution - Managed memory for AI agents (v0.1.0)'
+
+Parameters:
+  MemoryName:
+    Type: String
+    Default: AgentMemory
+    AllowedPattern: '^[a-zA-Z][a-zA-Z0-9_]{0,47}$'
+    Description: Name of the AgentCore Memory resource
+  EventExpiryDays:
+    Type: Number
+    Default: 30
+    MinValue: 3
+    MaxValue: 365
+    Description: Days to retain raw events (short-term memory)
+  EnableSemantic:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable semantic memory strategy (extracts facts)
+  EnableSummarization:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable summarization strategy (session summaries)
+  EnableUserPreference:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable user preference strategy
+  ExistingAgentCoreRuntimeArn:
+    Type: String
+    Default: ''
+    Description: ARN of an existing AgentCore Runtime to wire memory into (optional)
+
+Conditions:
+  UseSemantic: !Equals [!Ref EnableSemantic, 'true']
+  UseSummarization: !Equals [!Ref EnableSummarization, 'true']
+  UseUserPreference: !Equals [!Ref EnableUserPreference, 'true']
+  # Build strategies list based on enabled flags
+  SemanticOnly: !And [!Condition UseSemantic, !Not [!Condition UseSummarization], !Not [!Condition UseUserPreference]]
+  SummarizationOnly: !And [!Not [!Condition UseSemantic], !Condition UseSummarization, !Not [!Condition UseUserPreference]]
+  UserPrefOnly: !And [!Not [!Condition UseSemantic], !Not [!Condition UseSummarization], !Condition UseUserPreference]
+  SemanticAndSummarization: !And [!Condition UseSemantic, !Condition UseSummarization, !Not [!Condition UseUserPreference]]
+  SemanticAndUserPref: !And [!Condition UseSemantic, !Not [!Condition UseSummarization], !Condition UseUserPreference]
+  SummarizationAndUserPref: !And [!Not [!Condition UseSemantic], !Condition UseSummarization, !Condition UseUserPreference]
+  AllThree: !And [!Condition UseSemantic, !Condition UseSummarization, !Condition UseUserPreference]
+
+Resources:
+  AgentCoreMemory:
+    Type: AWS::BedrockAgentCore::Memory
+    Properties:
+      Name: !Ref MemoryName
+      Description: !Sub 'AgentCore Memory for ${AWS::StackName}'
+      EventExpiryDuration: !Ref EventExpiryDays
+      MemoryStrategies: !If
+        - AllThree
+        - - SemanticMemoryStrategy:
+              Name: SemanticFacts
+              NamespaceTemplates: ['/facts/{actorId}/']
+          - SummaryMemoryStrategy:
+              Name: SessionSummarizer
+              NamespaceTemplates: ['/summaries/{actorId}/{sessionId}/']
+          - UserPreferenceMemoryStrategy:
+              Name: UserPreferences
+              NamespaceTemplates: ['/users/{actorId}/preferences/']
+        - !If
+          - SemanticAndSummarization
+          - - SemanticMemoryStrategy:
+                Name: SemanticFacts
+                NamespaceTemplates: ['/facts/{actorId}/']
+            - SummaryMemoryStrategy:
+                Name: SessionSummarizer
+                NamespaceTemplates: ['/summaries/{actorId}/{sessionId}/']
+          - !If
+            - SemanticAndUserPref
+            - - SemanticMemoryStrategy:
+                  Name: SemanticFacts
+                  NamespaceTemplates: ['/facts/{actorId}/']
+              - UserPreferenceMemoryStrategy:
+                  Name: UserPreferences
+                  NamespaceTemplates: ['/users/{actorId}/preferences/']
+            - !If
+              - SummarizationAndUserPref
+              - - SummaryMemoryStrategy:
+                    Name: SessionSummarizer
+                    NamespaceTemplates: ['/summaries/{actorId}/{sessionId}/']
+                - UserPreferenceMemoryStrategy:
+                    Name: UserPreferences
+                    NamespaceTemplates: ['/users/{actorId}/preferences/']
+              - !If
+                - SemanticOnly
+                - - SemanticMemoryStrategy:
+                      Name: SemanticFacts
+                      NamespaceTemplates: ['/facts/{actorId}/']
+                - !If
+                  - SummarizationOnly
+                  - - SummaryMemoryStrategy:
+                        Name: SessionSummarizer
+                        NamespaceTemplates: ['/summaries/{actorId}/{sessionId}/']
+                  - !If
+                    - UserPrefOnly
+                    - - UserPreferenceMemoryStrategy:
+                          Name: UserPreferences
+                          NamespaceTemplates: ['/users/{actorId}/preferences/']
+                    - - SemanticMemoryStrategy:
+                          Name: SemanticFacts
+                          NamespaceTemplates: ['/facts/{actorId}/']
+
+Outputs:
+  MemoryId:
+    Value: !Ref AgentCoreMemory
+    Description: AgentCore Memory ID
+  MemoryArn:
+    Value: !GetAtt AgentCoreMemory.MemoryArn
+    Description: AgentCore Memory ARN
+  MemoryStatus:
+    Value: !GetAtt AgentCoreMemory.Status
+    Description: Memory resource status
+  StackName:
+    Value: !Ref AWS::StackName
+  IntegrationNote:
+    Value: !Sub 'Pass MemoryId to your AgentCore Runtime as env var MEMORY_${MemoryName}_ID'
+    Description: How to wire this memory into an existing AgentCore Runtime
