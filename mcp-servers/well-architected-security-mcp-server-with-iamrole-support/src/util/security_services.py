@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 
 import boto3
 from botocore.config import Config
+from loguru import logger
 from mcp.server.fastmcp import Context
 
 from src import __version__
@@ -330,186 +331,44 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
         Dictionary with status information about Amazon Inspector
     """
     try:
-        # Create Inspector client (using inspector2)
         inspector_client = session.client(
             "inspector2", region_name=region, config=USER_AGENT_CONFIG
         )
 
+        # Primary method: batch_get_account_status
         try:
-            # Get Inspector status
-            try:
-                # First try using get_status API
-                status_response = inspector_client.get_status()
-                print(
-                    f"[DEBUG:Inspector] get_status() successful, raw response: {status_response}"
-                )
+            account_status = inspector_client.batch_get_account_status()
+            if "accounts" in account_status and account_status["accounts"]:
+                resource_status = account_status["accounts"][0].get("resourceStatus", {})
+                ec2_status = resource_status.get("ec2", {}).get("status", "DISABLED")
+                ecr_status = resource_status.get("ecr", {}).get("status", "DISABLED")
+                lambda_status = resource_status.get("lambda", {}).get("status", "DISABLED")
 
-                # If we can call get_status successfully, Inspector2 is enabled
-                # Now we need to determine which scan types are enabled
+                enabled_scans = [
+                    name
+                    for name, status in [("EC2", ec2_status), ("ECR", ecr_status), ("LAMBDA", lambda_status)]
+                    if status == "ENABLED"
+                ]
+                logger.debug(f"Inspector batch_get_account_status enabled scans: {enabled_scans}")
 
-                # The service exists and is enabled at this point, since get_status worked
-                is_enabled = True
-
-                # Attempt to extract status from different possible response structures
-                status = {}
-
-                # Check all possible paths where status might be located
-                if isinstance(status_response, dict):
-                    # Direct status fields in response root
-                    for scan_type in ["EC2", "ECR", "LAMBDA", "ec2", "ecr", "lambda"]:
-                        # Try all possible field name patterns for each scan type
-                        for field_pattern in [
-                            f"{scan_type}Status",
-                            f"{scan_type.lower()}Status",
-                            f"{scan_type}_status",
-                            f"{scan_type.lower()}_status",
-                            scan_type,
-                            scan_type.lower(),
-                        ]:
-                            if field_pattern in status_response:
-                                status[field_pattern] = status_response[field_pattern]
-
-                    # Try the 'status' nested object too
-                    if "status" in status_response and isinstance(status_response["status"], dict):
-                        for key, value in status_response["status"].items():
-                            # Avoid duplicates if we've already found this info
-                            if key not in status:
-                                status[key] = value
-
-                print(f"[DEBUG:Inspector] Extracted status fields: {status}")
-
-                # Check for enabled scan types
-                scan_types = ["EC2", "ECR", "LAMBDA"]
-                enabled_scans = []
-
-                for scan_type in scan_types:
-                    found_enabled = False
-                    # Check all possible status keys for this scan type
-                    for status_key in [
-                        f"{scan_type}Status",
-                        f"{scan_type.lower()}Status",
-                        f"{scan_type}_status",
-                        f"{scan_type.lower()}_status",
-                        scan_type,
-                        scan_type.lower(),
-                    ]:
-                        status_value = None
-
-                        # Try direct key in status dictionary
-                        if status_key in status:
-                            status_value = status[status_key]
-                            print(
-                                f"[DEBUG:Inspector] Found status for {scan_type} via key {status_key}: {status_value}"
-                            )
-
-                        # Check if the status value indicates "enabled"
-                        if status_value and (
-                            (isinstance(status_value, str) and status_value.upper() == "ENABLED")
-                            or (isinstance(status_value, bool) and status_value is True)
-                        ):
-                            enabled_scans.append(scan_type)
-                            found_enabled = True
-                            print(f"[DEBUG:Inspector] {scan_type} scan type is ENABLED")
-                            break
-
-                    if not found_enabled:
-                        # If we haven't found an "enabled" status for this scan type, try one more approach
-                        # Looking for any key that contains the scan type name and has "enabled" value
-                        for status_key, status_value in status.items():
-                            if (
-                                scan_type.lower() in status_key.lower()
-                                and isinstance(status_value, str)
-                                and "enable" in status_value.lower()
-                            ):
-                                enabled_scans.append(scan_type)
-                                print(
-                                    f"[DEBUG:Inspector] {scan_type} scan type is potentially enabled via fuzzy match"
-                                )
-                                break
-
-                print(f"[DEBUG:Inspector] Final enabled scan types: {enabled_scans}")
-
-                # Build the scan status dictionary
-                scan_status = {}
-                for scan_type in scan_types:
-                    scan_found = False
-                    scan_status_key = f"{scan_type.lower()}_status"
-
-                    # Look for this scan type in the status dictionary
-                    for status_key, status_value in status.items():
-                        if scan_type.lower() in status_key.lower():
-                            scan_status[scan_status_key] = status_value
-                            scan_found = True
-                            break
-
-                    # If no matching key found, indicate unknown
-                    if not scan_found:
-                        scan_status[scan_status_key] = "UNKNOWN"
-
-                # By this point, if we successfully called get_status, the service itself is enabled
-                # Even if no scan types are explicitly shown as enabled
                 return {
-                    "enabled": is_enabled,
-                    "scan_status": scan_status,
-                    "message": f"Amazon Inspector is enabled with the following scan types: {', '.join(enabled_scans) if enabled_scans else 'unknown'}",
+                    "enabled": True,
+                    "scan_status": {
+                        "ec2_status": ec2_status,
+                        "ecr_status": ecr_status,
+                        "lambda_status": lambda_status,
+                    },
+                    "message": f"Amazon Inspector is enabled with the following scan types: {', '.join(enabled_scans) if enabled_scans else 'none'}",
                 }
+        except Exception as e:
+            logger.debug(f"Inspector batch_get_account_status() failed: {e}")
 
-            except Exception as status_error:
-                # log the error but continue with the alternative checks
-                print(f"[DEBUG:Inspector] get_status() error: {status_error}")
-                await ctx.warning(f"Error calling Inspector2 get_status(): {status_error}")
-
-            # If get_status failed or didn't find scan types, try another approach
-            # Try calling batch_get_account_status which may give different information
-            try:
-                account_status = inspector_client.batch_get_account_status()
-
-                # If we get here, the service is enabled
-                if "accounts" in account_status and account_status["accounts"]:
-                    account_info = account_status["accounts"][0]
-                    resource_status = account_info.get("resourceStatus", {})
-
-                    # Check which resources are enabled
-                    ec2_enabled = resource_status.get("ec2", {}).get("status") == "ENABLED"
-                    ecr_enabled = resource_status.get("ecr", {}).get("status") == "ENABLED"
-                    lambda_enabled = resource_status.get("lambda", {}).get("status") == "ENABLED"
-
-                    enabled_scans = []
-                    if ec2_enabled:
-                        enabled_scans.append("EC2")
-                    if ecr_enabled:
-                        enabled_scans.append("ECR")
-                    if lambda_enabled:
-                        enabled_scans.append("LAMBDA")
-
-                    print(
-                        f"[DEBUG:Inspector] From batch_get_account_status, enabled scans: {enabled_scans}"
-                    )
-
-                    # If we successfully called batch_get_account_status, treat Inspector as enabled
-                    return {
-                        "enabled": True,
-                        "scan_status": {
-                            "ec2_status": "ENABLED" if ec2_enabled else "DISABLED",
-                            "ecr_status": "ENABLED" if ecr_enabled else "DISABLED",
-                            "lambda_status": "ENABLED" if lambda_enabled else "DISABLED",
-                        },
-                        "message": f"Amazon Inspector is enabled with the following scan types: {', '.join(enabled_scans) if enabled_scans else 'none'}",
-                    }
-            except Exception as account_error:
-                print(f"[DEBUG:Inspector] batch_get_account_status() error: {account_error}")
-
-            # As a last resort, try listing findings
-            # If this works, it means Inspector is enabled
-            try:
-                # Try listing a small number of findings just to test API access
-                findings_response = inspector_client.list_findings(maxResults=1)
-                flag = False
-                if findings_response:
-                    flag = True
-                # If we can call list_findings, Inspector is definitely enabled
+        # Fallback: list_findings
+        try:
+            findings_response = inspector_client.list_findings(maxResults=1)
+            if findings_response:
                 return {
-                    "enabled": flag,
+                    "enabled": True,
                     "scan_status": {
                         "ec2_status": "UNKNOWN",
                         "ecr_status": "UNKNOWN",
@@ -517,19 +376,18 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
                     },
                     "message": "Amazon Inspector is enabled, but specific scan types could not be determined.",
                 }
-            except Exception as findings_error:
-                print(f"[DEBUG:Inspector] list_findings() error: {findings_error}")
+        except Exception as e:
+            logger.debug(f"Inspector list_findings() failed: {e}")
 
-            # If we get here, we've tried multiple methods but can't confirm Inspector is enabled
-            print("[DEBUG:Inspector] All detection methods failed, treating as not enabled")
-            return {
-                "enabled": False,
-                "scan_status": {
-                    "ec2_status": "UNKNOWN",
-                    "ecr_status": "UNKNOWN",
-                    "lambda_status": "UNKNOWN",
-                },
-                "setup_instructions": """
+        # Both methods failed
+        return {
+            "enabled": False,
+            "scan_status": {
+                "ec2_status": "UNKNOWN",
+                "ecr_status": "UNKNOWN",
+                "lambda_status": "UNKNOWN",
+            },
+            "setup_instructions": """
                 # Amazon Inspector Setup Instructions
 
                 Amazon Inspector may not be fully enabled in this region. To enable it:
@@ -542,22 +400,8 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
 
                 Learn more: https://docs.aws.amazon.com/inspector/latest/user/enabling-disable-scanning-account.html
                 """,
-                "message": "Amazon Inspector status could not be determined. Multiple detection methods failed.",
-            }
-        except inspector_client.exceptions.AccessDeniedException:
-            # Inspector is not enabled or permissions issue
-            return {
-                "enabled": False,
-                "setup_instructions": """
-                # Amazon Inspector Setup Instructions
-                Amazon Inspector is not enabled in this region. To enable it:
-                1. Open the Inspector console: https://console.aws.amazon.com/inspector/
-                2. Choose Get started
-                3. Choose Enable Amazon Inspector
-                4. Select the scan types to enable
-                """,
-                "message": "Amazon Inspector is not enabled in this region.",
-            }
+            "message": "Amazon Inspector status could not be determined.",
+        }
     except Exception as e:
         await ctx.error(f"Error checking Inspector status: {e}")
         return {"enabled": False, "error": str(e), "message": "Error checking Inspector status."}
@@ -587,10 +431,10 @@ async def get_guardduty_findings(
     """
     try:
         # First check if GuardDuty is enabled
-        print(f"[DEBUG:GuardDuty] Checking if GuardDuty is enabled in {region}")
+        logger.debug(f"GuardDuty: Checking if GuardDuty is enabled in {region}")
         guardduty_status = await check_guard_duty(region, session, ctx)
         if not guardduty_status.get("enabled", False):
-            print(f"[DEBUG:GuardDuty] GuardDuty is not enabled in {region}")
+            logger.debug(f"GuardDuty: GuardDuty is not enabled in {region}")
             return {
                 "enabled": False,
                 "message": "Amazon GuardDuty is not enabled in this region",
@@ -599,10 +443,10 @@ async def get_guardduty_findings(
             }
 
         # Get detector ID
-        print("[DEBUG:GuardDuty] GuardDuty is enabled, retrieving detector ID")
+        logger.debug("GuardDuty: GuardDuty is enabled, retrieving detector ID")
         detector_id = guardduty_status.get("detector_details", {}).get("id")
         if not detector_id:
-            print("[DEBUG:GuardDuty] ERROR: No GuardDuty detector ID found")
+            logger.error("GuardDuty: No GuardDuty detector ID found")
             await ctx.error("No GuardDuty detector ID found")
             return {
                 "enabled": True,
@@ -611,7 +455,7 @@ async def get_guardduty_findings(
                 "debug_info": "GuardDuty is enabled but no detector ID was found",
             }
 
-        print(f"[DEBUG:GuardDuty] Using detector ID: {detector_id}")
+        logger.debug(f"GuardDuty: Using detector ID: {detector_id}")
 
         # Create GuardDuty client
         guardduty_client = session.client(
@@ -620,7 +464,7 @@ async def get_guardduty_findings(
 
         # Set up default finding criteria if none provided
         if filter_criteria is None:
-            print("[DEBUG:GuardDuty] No filter criteria provided, creating default criteria")
+            logger.debug("GuardDuty: No filter criteria provided, creating default criteria")
             # By default, get findings from the last 30 days with high or medium severity
             # Calculate timestamp in milliseconds (GuardDuty expects integer timestamp)
             thirty_days_ago = int(
@@ -635,25 +479,21 @@ async def get_guardduty_findings(
                     "updatedAt": {"GreaterThanOrEqual": thirty_days_ago},
                 }
             }
-            print(
-                f"[DEBUG:GuardDuty] Created default filter criteria with timestamp: {thirty_days_ago} ({datetime.datetime.fromtimestamp(thirty_days_ago / 1000).isoformat()})"
-            )
+            logger.debug(f"GuardDuty: Created default filter criteria with timestamp: {thirty_days_ago} ({datetime.datetime.fromtimestamp(thirty_days_ago / 1000).isoformat()})")
         else:
-            print(
-                f"[DEBUG:GuardDuty] Using provided filter criteria: {json.dumps(filter_criteria)}"
-            )
+            logger.debug(f"GuardDuty: Using provided filter criteria: {json.dumps(filter_criteria)}")
 
         # List findings with the filter criteria
-        print(f"[DEBUG:GuardDuty] Calling list_findings with max results: {max_findings}")
+        logger.debug(f"GuardDuty: Calling list_findings with max results: {max_findings}")
         findings_response = guardduty_client.list_findings(
             DetectorId=detector_id, FindingCriteria=filter_criteria, MaxResults=max_findings
         )
 
         finding_ids = findings_response.get("FindingIds", [])
-        print(f"[DEBUG:GuardDuty] Retrieved {len(finding_ids)} finding IDs")
+        logger.debug(f"GuardDuty: Retrieved {len(finding_ids)} finding IDs")
 
         if not finding_ids:
-            print("[DEBUG:GuardDuty] No findings match the filter criteria")
+            logger.debug("GuardDuty: No findings match the filter criteria")
             return {
                 "enabled": True,
                 "message": "No GuardDuty findings match the filter criteria",
@@ -662,7 +502,7 @@ async def get_guardduty_findings(
             }
 
         # Get finding details
-        print(f"[DEBUG:GuardDuty] Retrieving details for {len(finding_ids)} findings")
+        logger.debug(f"GuardDuty: Retrieving details for {len(finding_ids)} findings")
         findings_details = guardduty_client.get_findings(
             DetectorId=detector_id, FindingIds=finding_ids
         )
@@ -670,23 +510,19 @@ async def get_guardduty_findings(
         # Process findings to clean up non-serializable objects (like datetime)
         findings = []
         raw_findings_count = len(findings_details.get("Findings", []))
-        print(
-            f"[DEBUG:GuardDuty] Processing {raw_findings_count} findings from get_findings response"
-        )
+        logger.debug(f"GuardDuty: Processing {raw_findings_count} findings from get_findings response")
 
         for finding in findings_details.get("Findings", []):
             # Convert datetime objects to strings
             finding = _clean_datetime_objects(finding)
             findings.append(finding)
 
-        print(f"[DEBUG:GuardDuty] Successfully processed {len(findings)} findings")
+        logger.debug(f"GuardDuty: Successfully processed {len(findings)} findings")
 
         # Generate summary
         summary = _summarize_guardduty_findings(findings)
-        print(f"[DEBUG:GuardDuty] Generated summary with {summary['total_count']} findings")
-        print(
-            f"[DEBUG:GuardDuty] Severity breakdown: High={summary['severity_counts']['high']}, Medium={summary['severity_counts']['medium']}, Low={summary['severity_counts']['low']}"
-        )
+        logger.debug(f"GuardDuty: Generated summary with {summary['total_count']} findings")
+        logger.debug(f"GuardDuty: Severity breakdown: High={summary['severity_counts']['high']}, Medium={summary['severity_counts']['medium']}, Low={summary['severity_counts']['low']}")
 
         return {
             "enabled": True,
@@ -1174,7 +1010,7 @@ async def check_trusted_advisor(region: str, session: boto3.Session, ctx: Contex
         Full Trusted Advisor functionality requires Business or Enterprise Support plan.
     """
     try:
-        print("[DEBUG:TrustedAdvisor] Starting Trusted Advisor check")
+        logger.debug("TrustedAdvisor: Starting Trusted Advisor check")
 
         # Trusted Advisor API is only available in us-east-1
         support_client = session.client(
@@ -1183,14 +1019,12 @@ async def check_trusted_advisor(region: str, session: boto3.Session, ctx: Contex
 
         try:
             # Try to describe Trusted Advisor checks to see if we have access
-            print("[DEBUG:TrustedAdvisor] Calling describe_trusted_advisor_checks API")
+            logger.debug("TrustedAdvisor: Calling describe_trusted_advisor_checks API")
             checks_response = support_client.describe_trusted_advisor_checks(language="en")
 
             # If we get here, we have access to Trusted Advisor
             checks = checks_response.get("checks", [])
-            print(
-                f"[DEBUG:TrustedAdvisor] Successfully retrieved {len(checks)} Trusted Advisor checks"
-            )
+            logger.debug(f"TrustedAdvisor: Successfully retrieved {len(checks)} Trusted Advisor checks")
 
             # Count checks by category
             category_counts = {}
@@ -1203,7 +1037,7 @@ async def check_trusted_advisor(region: str, session: boto3.Session, ctx: Contex
 
             # Count security checks specifically
             security_checks = [check for check in checks if check.get("category") == "security"]
-            print(f"[DEBUG:TrustedAdvisor] Found {len(security_checks)} security-related checks")
+            logger.debug(f"TrustedAdvisor: Found {len(security_checks)} security-related checks")
 
             # Determine support tier based on number of checks
             # Basic support typically has 7 core checks, Business/Enterprise has 100+
@@ -1272,7 +1106,7 @@ async def get_trusted_advisor_findings(
         Dictionary containing Trusted Advisor check results
     """
     try:
-        print("[DEBUG:TrustedAdvisor] Starting findings retrieval")
+        logger.debug("TrustedAdvisor: Starting findings retrieval")
 
         # Set default status filter if not provided
         if status_filter is None:
@@ -1281,7 +1115,7 @@ async def get_trusted_advisor_findings(
         # First check if Trusted Advisor is accessible
         ta_status = await check_trusted_advisor(region, session, ctx)
         if not ta_status.get("enabled", False):
-            print("[DEBUG:TrustedAdvisor] Trusted Advisor is not fully accessible")
+            logger.debug("TrustedAdvisor: Trusted Advisor is not fully accessible")
             return {
                 "enabled": False,
                 "message": ta_status.get("message", "AWS Trusted Advisor is not accessible"),
@@ -1295,7 +1129,7 @@ async def get_trusted_advisor_findings(
         )
 
         # Get all available checks
-        print("[DEBUG:TrustedAdvisor] Getting all available checks")
+        logger.debug("TrustedAdvisor: Getting all available checks")
         checks_response = support_client.describe_trusted_advisor_checks(language="en")
         all_checks = checks_response.get("checks", [])
 
@@ -1307,9 +1141,7 @@ async def get_trusted_advisor_findings(
                 for check in all_checks
                 if check.get("category", "").lower() == category_filter.lower()
             ]
-            print(
-                f"[DEBUG:TrustedAdvisor] Filtered to {len(filtered_checks)} {category_filter} checks"
-            )
+            logger.debug(f"TrustedAdvisor: Filtered to {len(filtered_checks)} {category_filter} checks")
 
         # Limit the number of checks to process based on max_findings
         checks_to_process = filtered_checks[:max_findings]
@@ -1359,9 +1191,7 @@ async def get_trusted_advisor_findings(
                     finding["flagged_resources"].append(resource_data)
 
                 findings.append(finding)
-                print(
-                    f"[DEBUG:TrustedAdvisor] Added finding: {finding['name']} (status: {finding['status']}, resources: {finding['resources_flagged']})"
-                )
+                logger.debug(f"TrustedAdvisor: Added finding: {finding['name']} (status: {finding['status']}, resources: {finding['resources_flagged']})")
 
             except Exception as check_error:
                 await ctx.warning(
@@ -1438,15 +1268,15 @@ async def check_macie(region: str, session: boto3.Session, ctx: Context) -> Dict
         Dictionary with status information about Amazon Macie
     """
     try:
-        print(f"[DEBUG:Macie] Starting Macie check for region: {region}")
+        logger.debug(f"Macie: Starting Macie check for region: {region}")
         # Create Macie client
         macie_client = session.client("macie2", region_name=region, config=USER_AGENT_CONFIG)
 
         # Check if Macie is enabled
         try:
-            print("[DEBUG:Macie] Calling get_macie_session() API")
+            logger.debug("Macie: Calling get_macie_session() API")
             status = macie_client.get_macie_session()
-            print(f"[DEBUG:Macie] get_macie_session() successful, status: {status.get('status')}")
+            logger.debug(f"Macie: get_macie_session() successful, status: {status.get('status')}")
 
             # If we get here without exception, Macie is enabled
             return {
@@ -1505,11 +1335,11 @@ async def get_macie_findings(
         Dictionary containing Macie findings
     """
     try:
-        print(f"[DEBUG:Macie] Starting findings retrieval for region: {region}")
+        logger.debug(f"Macie: Starting findings retrieval for region: {region}")
         # First check if Macie is enabled
         macie_status = await check_macie(region, session, ctx)
         if not macie_status.get("enabled", False):
-            print(f"[DEBUG:Macie] Macie is not enabled in {region}")
+            logger.debug(f"Macie: Macie is not enabled in {region}")
             return {
                 "enabled": False,
                 "message": "Amazon Macie is not enabled in this region",
@@ -1529,7 +1359,7 @@ async def get_macie_findings(
         )
 
         finding_ids = findings_response.get("findingIds", [])
-        print(f"[DEBUG:Macie] Retrieved {len(finding_ids)} finding IDs")
+        logger.debug(f"Macie: Retrieved {len(finding_ids)} finding IDs")
 
         if not finding_ids:
             return {
@@ -1539,24 +1369,24 @@ async def get_macie_findings(
             }
 
         # Get finding details
-        print(f"[DEBUG:Macie] Retrieving details for {len(finding_ids)} findings")
+        logger.debug(f"Macie: Retrieving details for {len(finding_ids)} findings")
         findings_details = macie_client.get_findings(findingIds=finding_ids)
 
         # Process findings to clean up non-serializable objects (like datetime)
         findings = []
         raw_findings_count = len(findings_details.get("findings", []))
-        print(f"[DEBUG:Macie] Processing {raw_findings_count} findings from get_findings response")
+        logger.debug(f"Macie: Processing {raw_findings_count} findings from get_findings response")
 
         for finding in findings_details.get("findings", []):
             # Convert datetime objects to strings
             finding = _clean_datetime_objects(finding)
             findings.append(finding)
 
-        print(f"[DEBUG:Macie] Successfully processed {len(findings)} findings")
+        logger.debug(f"Macie: Successfully processed {len(findings)} findings")
 
         # Generate summary
         summary = _summarize_macie_findings(findings)
-        print(f"[DEBUG:Macie] Generated summary with {summary['total_count']} findings")
+        logger.debug(f"Macie: Generated summary with {summary['total_count']} findings")
 
         return {
             "enabled": True,

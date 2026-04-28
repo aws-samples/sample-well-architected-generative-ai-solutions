@@ -18,6 +18,8 @@
 """Utility functions for AWS credential management including AssumeRole support."""
 
 import os
+import re
+import time
 from typing import Optional
 
 import boto3
@@ -30,6 +32,9 @@ from src import __version__
 USER_AGENT_CONFIG = Config(
     user_agent_extra=f"awslabs/mcp/well-architected-security-mcp-server/{__version__}"
 )
+
+_SESSION_TTL = 3000  # 50 minutes
+_session_cache: dict = {}
 
 
 def create_aws_session() -> boto3.Session:
@@ -52,12 +57,20 @@ def create_aws_session() -> boto3.Session:
     """
     assume_role_arn = os.environ.get("AWS_ASSUME_ROLE_ARN")
     
+    if _session_cache and time.time() < _session_cache.get("expires_at", 0):
+        logger.info("Returning cached AWS session")
+        return _session_cache["session"]
+    
     if assume_role_arn:
         logger.info(f"AssumeRole configuration detected. Assuming role: {assume_role_arn}")
-        return _create_assume_role_session(assume_role_arn)
+        session = _create_assume_role_session(assume_role_arn)
     else:
         logger.info("Using default AWS credentials chain")
-        return boto3.Session()
+        session = boto3.Session()
+    
+    _session_cache["session"] = session
+    _session_cache["expires_at"] = time.time() + _SESSION_TTL
+    return session
 
 
 def _create_assume_role_session(role_arn: str) -> boto3.Session:
@@ -164,7 +177,7 @@ def validate_assume_role_config() -> dict:
     issues = []
     
     # Validate ARN format
-    if not assume_role_arn.startswith("arn:aws:iam::"):
+    if not re.match(r"arn:(aws|aws-us-gov|aws-cn):iam::", assume_role_arn):
         issues.append("AWS_ASSUME_ROLE_ARN does not appear to be a valid IAM role ARN")
     
     # Check session name

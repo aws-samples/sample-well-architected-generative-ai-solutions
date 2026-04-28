@@ -20,6 +20,7 @@
 from typing import Any, Dict, List
 
 import boto3
+from loguru import logger
 import botocore.exceptions
 from botocore.config import Config
 from mcp.server.fastmcp import Context
@@ -141,52 +142,52 @@ async def generate_recommendations(results: Dict[str, Any]) -> List[str]:
 
     # Check S3 recommendations
     if "s3" in results.get("compliance_by_service", {}):
-        s3_results = results["compliance_by_service"]["s3"]
-        if s3_results.get("non_compliant_resources", 0) > 0:
-            recommendations.append("Enable default encryption for all S3 buckets")
-            recommendations.append("Enable block public access settings at the account level")
+        s3_nc = results["compliance_by_service"]["s3"].get("non_compliant_resources", 0)
+        if s3_nc > 0:
+            recommendations.append(f"Enable default encryption for all S3 buckets ({s3_nc} non-compliant found)")
+            recommendations.append(f"Enable block public access settings at the account level ({s3_nc} non-compliant found)")
 
     # Check EBS recommendations
     if "ebs" in results.get("compliance_by_service", {}):
-        ebs_results = results["compliance_by_service"]["ebs"]
-        if ebs_results.get("non_compliant_resources", 0) > 0:
-            recommendations.append("Enable default EBS encryption at the account level")
+        ebs_nc = results["compliance_by_service"]["ebs"].get("non_compliant_resources", 0)
+        if ebs_nc > 0:
+            recommendations.append(f"Enable default EBS encryption at the account level ({ebs_nc} non-compliant found)")
             recommendations.append(
-                "Create encrypted snapshots of unencrypted volumes and restore to new encrypted volumes"
+                f"Create encrypted snapshots of unencrypted volumes and restore to new encrypted volumes ({ebs_nc} non-compliant found)"
             )
 
     # Check RDS recommendations
     if "rds" in results.get("compliance_by_service", {}):
-        rds_results = results["compliance_by_service"]["rds"]
-        if rds_results.get("non_compliant_resources", 0) > 0:
-            recommendations.append("Enable encryption for all RDS instances")
-            recommendations.append("Configure SSL/TLS for database connections")
-            recommendations.append("Enable default RDS encryption at the account level")
+        rds_nc = results["compliance_by_service"]["rds"].get("non_compliant_resources", 0)
+        if rds_nc > 0:
+            recommendations.append(f"Enable encryption for all RDS instances ({rds_nc} non-compliant found)")
+            recommendations.append(f"Configure SSL/TLS for database connections ({rds_nc} non-compliant found)")
+            recommendations.append(f"Enable default RDS encryption at the account level ({rds_nc} non-compliant found)")
 
     # Check DynamoDB recommendations
     if "dynamodb" in results.get("compliance_by_service", {}):
-        dynamodb_results = results["compliance_by_service"]["dynamodb"]
-        if dynamodb_results.get("non_compliant_resources", 0) > 0:
+        dynamodb_nc = results["compliance_by_service"]["dynamodb"].get("non_compliant_resources", 0)
+        if dynamodb_nc > 0:
             recommendations.append(
-                "Use customer-managed KMS keys for DynamoDB tables instead of AWS owned keys"
+                f"Use customer-managed KMS keys for DynamoDB tables instead of AWS owned keys ({dynamodb_nc} non-compliant found)"
             )
 
     # Check EFS recommendations
     if "efs" in results.get("compliance_by_service", {}):
-        efs_results = results["compliance_by_service"]["efs"]
-        if efs_results.get("non_compliant_resources", 0) > 0:
+        efs_nc = results["compliance_by_service"]["efs"].get("non_compliant_resources", 0)
+        if efs_nc > 0:
             recommendations.append(
-                "Create new encrypted EFS filesystems and migrate data from unencrypted ones"
+                f"Create new encrypted EFS filesystems and migrate data from unencrypted ones ({efs_nc} non-compliant found)"
             )
-            recommendations.append("Enable encryption by default for new EFS filesystems")
+            recommendations.append(f"Enable encryption by default for new EFS filesystems ({efs_nc} non-compliant found)")
 
     # Check ElastiCache recommendations
     if "elasticache" in results.get("compliance_by_service", {}):
-        elasticache_results = results["compliance_by_service"]["elasticache"]
-        if elasticache_results.get("non_compliant_resources", 0) > 0:
-            recommendations.append("Use Redis instead of Memcached for encryption support")
-            recommendations.append("Enable at-rest and in-transit encryption for Redis clusters")
-            recommendations.append("Enable AUTH tokens for Redis clusters")
+        ec_nc = results["compliance_by_service"]["elasticache"].get("non_compliant_resources", 0)
+        if ec_nc > 0:
+            recommendations.append(f"Use Redis instead of Memcached for encryption support ({ec_nc} non-compliant found)")
+            recommendations.append(f"Enable at-rest and in-transit encryption for Redis clusters ({ec_nc} non-compliant found)")
+            recommendations.append(f"Enable AUTH tokens for Redis clusters ({ec_nc} non-compliant found)")
 
     # General recommendations
     recommendations.append(
@@ -203,9 +204,7 @@ async def find_storage_resources(
 ) -> Dict[str, Any]:
     """Find storage resources using Resource Explorer."""
     try:
-        print(
-            f"[DEBUG:StorageSecurity] Finding storage resources in {region} using Resource Explorer"
-        )
+        logger.debug(f"Finding storage resources in {region} using Resource Explorer")
 
         # Initialize resource explorer client
         resource_explorer = session.client(
@@ -213,21 +212,21 @@ async def find_storage_resources(
         )
 
         # Try to get the default view for Resource Explorer
-        print("[DEBUG:StorageSecurity] Listing Resource Explorer views...")
+        logger.debug("Listing Resource Explorer views...")
         views = resource_explorer.list_views()
-        print(f"[DEBUG:StorageSecurity] Found {len(views.get('Views', []))} views")
+        logger.debug(f"Found {len(views.get('Views', []))} views")
 
         default_view = None
         # Find the default view
         for view in views.get("Views", []):
-            print(f"[DEBUG:StorageSecurity] View: {view.get('ViewArn')}")
+            logger.debug(f"View: {view.get('ViewArn')}")
             if view.get("Filters", {}).get("FilterString", "") == "":
                 default_view = view.get("ViewArn")
-                print(f"[DEBUG:StorageSecurity] Found default view: {default_view}")
+                logger.debug(f"Found default view: {default_view}")
                 break
 
         if not default_view:
-            print("[DEBUG:StorageSecurity] No default view found. Cannot use Resource Explorer.")
+            logger.debug("No default view found. Cannot use Resource Explorer.")
             await ctx.warning(
                 "No default Resource Explorer view found. Will fall back to direct service API calls."
             )
@@ -251,7 +250,7 @@ async def find_storage_resources(
 
         # Combine with OR
         filter_string = " OR ".join(service_filters)
-        print(f"[DEBUG:StorageSecurity] Using filter string: {filter_string}")
+        logger.debug(f"Using filter string: {filter_string}")
 
         # Get resources
         resources = []
@@ -263,7 +262,7 @@ async def find_storage_resources(
         for page in page_iterator:
             resources.extend(page.get("Resources", []))
 
-        print(f"[DEBUG:StorageSecurity] Found {len(resources)} total storage resources")
+        logger.debug(f"Found {len(resources)} total storage resources")
 
         # Organize by service
         resources_by_service = {}
@@ -284,7 +283,7 @@ async def find_storage_resources(
 
         # Print summary
         for service, svc_resources in resources_by_service.items():
-            print(f"[DEBUG:StorageSecurity] {service}: {len(svc_resources)} resources")
+            logger.debug(f"{service}: {len(svc_resources)} resources")
 
         return {
             "total_resources": len(resources),
@@ -293,7 +292,7 @@ async def find_storage_resources(
         }
 
     except botocore.exceptions.BotoCoreError as e:
-        print(f"[DEBUG:StorageSecurity] Error finding storage resources: {e}")
+        logger.error(f"Error finding storage resources: {e}")
         await ctx.error(f"Error finding storage resources: {e}")
         return {"error": str(e), "resources_by_service": {}}
 
@@ -302,7 +301,7 @@ async def check_s3_buckets(
     region: str, s3_client: Any, ctx: Context, storage_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check S3 buckets for encryption and security best practices."""
-    print(f"[DEBUG:StorageSecurity] Checking S3 buckets in {region}")
+    logger.debug(f"Checking S3 buckets in {region}")
 
     results = {
         "service": "s3",
@@ -341,12 +340,10 @@ async def check_s3_buckets(
                     if bucket_region == region:
                         buckets.append(bucket["Name"])
                 except Exception as e:
-                    print(
-                        f"[DEBUG:StorageSecurity] Error getting location for bucket {bucket['Name']}: {e}"
-                    )
+                    logger.error(f"Error getting location for bucket {bucket['Name']}: {e}")
                     await ctx.warning(f"Error getting location for bucket {bucket['Name']}: {e}")
 
-        print(f"[DEBUG:StorageSecurity] Found {len(buckets)} S3 buckets in region {region}")
+        logger.debug(f"Found {len(buckets)} S3 buckets in region {region}")
         results["resources_checked"] = len(buckets)
 
         # Check each bucket
@@ -422,9 +419,7 @@ async def check_s3_buckets(
                     bucket_result["compliant"] = False
                     bucket_result["issues"].append("Public access not fully blocked")
             except Exception as e:
-                print(
-                    f"[DEBUG:StorageSecurity] Error checking public access block for {bucket_name}: {e}"
-                )
+                logger.error(f"Error checking public access block for {bucket_name}: {e}")
                 bucket_result["checks"]["block_public_access"] = {
                     "enabled": False,
                     "error": str(e),
@@ -471,7 +466,7 @@ async def check_ebs_volumes(
     region: str, ec2_client: Any, ctx: Context, storage_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check EBS volumes for encryption and security best practices."""
-    print(f"[DEBUG:StorageSecurity] Checking EBS volumes in {region}")
+    logger.debug(f"Checking EBS volumes in {region}")
 
     results = {
         "service": "ebs",
@@ -504,7 +499,7 @@ async def check_ebs_volumes(
                 for volume in page.get("Volumes", []):
                     volumes.append(volume["VolumeId"])
 
-        print(f"[DEBUG:StorageSecurity] Found {len(volumes)} EBS volumes in region {region}")
+        logger.debug(f"Found {len(volumes)} EBS volumes in region {region}")
         results["resources_checked"] = len(volumes)
 
         # Check each volume in batches to avoid API limits
@@ -567,7 +562,7 @@ async def check_ebs_volumes(
                     results["resource_details"].append(volume_result)
 
             except Exception as e:
-                print(f"[DEBUG:StorageSecurity] Error checking batch of EBS volumes: {e}")
+                logger.error(f"Error checking batch of EBS volumes: {e}")
                 await ctx.warning(f"Error checking batch of EBS volumes: {e}")
 
         return results
@@ -588,7 +583,7 @@ async def check_rds_instances(
     region: str, rds_client: Any, ctx: Context, storage_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check RDS instances for encryption and security best practices."""
-    print(f"[DEBUG:StorageSecurity] Checking RDS instances in {region}")
+    logger.debug(f"Checking RDS instances in {region}")
 
     results = {
         "service": "rds",
@@ -621,7 +616,7 @@ async def check_rds_instances(
                 for instance in page.get("DBInstances", []):
                     instances.append(instance["DBInstanceIdentifier"])
 
-        print(f"[DEBUG:StorageSecurity] Found {len(instances)} RDS instances in region {region}")
+        logger.debug(f"Found {len(instances)} RDS instances in region {region}")
         results["resources_checked"] = len(instances)
 
         # Check each RDS instance
@@ -697,7 +692,7 @@ async def check_rds_instances(
                 results["resource_details"].append(instance_result)
 
             except Exception as e:
-                print(f"[DEBUG:StorageSecurity] Error checking RDS instance {db_id}: {e}")
+                logger.error(f"Error checking RDS instance {db_id}: {e}")
                 await ctx.warning(f"Error checking RDS instance {db_id}: {e}")
 
         return results
@@ -718,7 +713,7 @@ async def check_dynamodb_tables(
     region: str, dynamodb_client: Any, ctx: Context, storage_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check DynamoDB tables for encryption and security best practices."""
-    print(f"[DEBUG:StorageSecurity] Checking DynamoDB tables in {region}")
+    logger.debug(f"Checking DynamoDB tables in {region}")
 
     results = {
         "service": "dynamodb",
@@ -754,7 +749,7 @@ async def check_dynamodb_tables(
                 )
                 tables.extend(response.get("TableNames", []))
 
-        print(f"[DEBUG:StorageSecurity] Found {len(tables)} DynamoDB tables in region {region}")
+        logger.debug(f"Found {len(tables)} DynamoDB tables in region {region}")
         results["resources_checked"] = len(tables)
 
         # Check each DynamoDB table
@@ -810,9 +805,7 @@ async def check_dynamodb_tables(
                         )
 
                 except Exception as e:
-                    print(
-                        f"[DEBUG:StorageSecurity] Error checking SSE for table {table_name}: {e}"
-                    )
+                    logger.error(f"Error checking SSE for table {table_name}: {e}")
                     table_result["compliant"] = False
                     table_result["issues"].append("Error checking encryption settings")
                     table_result["checks"]["encrypted"] = False
@@ -838,7 +831,7 @@ async def check_dynamodb_tables(
                 results["resource_details"].append(table_result)
 
             except Exception as e:
-                print(f"[DEBUG:StorageSecurity] Error checking DynamoDB table {table_name}: {e}")
+                logger.error(f"Error checking DynamoDB table {table_name}: {e}")
                 await ctx.warning(f"Error checking DynamoDB table {table_name}: {e}")
 
         return results
@@ -859,7 +852,7 @@ async def check_efs_filesystems(
     region: str, efs_client: Any, ctx: Context, storage_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check EFS filesystems for encryption and security best practices."""
-    print(f"[DEBUG:StorageSecurity] Checking EFS filesystems in {region}")
+    logger.debug(f"Checking EFS filesystems in {region}")
 
     results = {
         "service": "efs",
@@ -892,9 +885,7 @@ async def check_efs_filesystems(
                 for fs in page.get("FileSystems", []):
                     filesystems.append(fs["FileSystemId"])
 
-        print(
-            f"[DEBUG:StorageSecurity] Found {len(filesystems)} EFS filesystems in region {region}"
-        )
+        logger.debug(f"Found {len(filesystems)} EFS filesystems in region {region}")
         results["resources_checked"] = len(filesystems)
 
         # Check each EFS filesystem
@@ -960,7 +951,7 @@ async def check_efs_filesystems(
                 results["resource_details"].append(fs_result)
 
             except Exception as e:
-                print(f"[DEBUG:StorageSecurity] Error checking EFS filesystem {fs_id}: {e}")
+                logger.error(f"Error checking EFS filesystem {fs_id}: {e}")
                 await ctx.warning(f"Error checking EFS filesystem {fs_id}: {e}")
 
         return results
@@ -981,7 +972,7 @@ async def check_elasticache_clusters(
     region: str, elasticache_client: Any, ctx: Context, storage_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Check ElastiCache clusters for encryption and security best practices."""
-    print(f"[DEBUG:StorageSecurity] Checking ElastiCache clusters in {region}")
+    logger.debug(f"Checking ElastiCache clusters in {region}")
 
     results = {
         "service": "elasticache",
@@ -1014,9 +1005,7 @@ async def check_elasticache_clusters(
                 for cluster in page.get("CacheClusters", []):
                     clusters.append(cluster["CacheClusterId"])
 
-        print(
-            f"[DEBUG:StorageSecurity] Found {len(clusters)} ElastiCache clusters in region {region}"
-        )
+        logger.debug(f"Found {len(clusters)} ElastiCache clusters in region {region}")
         results["resources_checked"] = len(clusters)
 
         # Check each ElastiCache cluster
@@ -1110,9 +1099,7 @@ async def check_elasticache_clusters(
                 results["resource_details"].append(cluster_result)
 
             except Exception as e:
-                print(
-                    f"[DEBUG:StorageSecurity] Error checking ElastiCache cluster {cluster_id}: {e}"
-                )
+                logger.error(f"Error checking ElastiCache cluster {cluster_id}: {e}")
                 await ctx.warning(f"Error checking ElastiCache cluster {cluster_id}: {e}")
 
         return results

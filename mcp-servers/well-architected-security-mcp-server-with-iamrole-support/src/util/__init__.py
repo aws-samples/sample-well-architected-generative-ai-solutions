@@ -17,29 +17,52 @@
 
 """Utility functions for AWS Security Pillar MCP Server."""
 
+from .credential_utils import (
+    create_aws_session,
+    get_session_info,
+    validate_assume_role_config,
+)
+from .network_security import check_network_security
 from .resource_utils import list_services_in_region
 from .security_services import (
     check_access_analyzer,
     check_guard_duty,
     check_inspector,
+    check_macie,
     check_security_hub,
+    check_trusted_advisor,
     get_access_analyzer_findings,
     get_guardduty_findings,
     get_inspector_findings,
+    get_macie_findings,
     get_securityhub_findings,
+    get_trusted_advisor_findings,
 )
+from .storage_security import check_storage_encryption
 
 # Export all imported functions
 __all__ = [
-    # Security service functions
-    "check_access_analyzer",
-    "check_security_hub",
-    "check_guard_duty",
-    "check_inspector",
-    "get_guardduty_findings",
-    "get_securityhub_findings",
-    "get_inspector_findings",
-    "get_access_analyzer_findings",
+    # Credential utility functions
+    "create_aws_session",
+    "get_session_info",
+    "validate_assume_role_config",
+    # Network security functions
+    "check_network_security",
     # Resource utility functions
     "list_services_in_region",
+    # Security service functions
+    "check_access_analyzer",
+    "check_guard_duty",
+    "check_inspector",
+    "check_macie",
+    "check_security_hub",
+    "check_trusted_advisor",
+    "get_access_analyzer_findings",
+    "get_guardduty_findings",
+    "get_inspector_findings",
+    "get_macie_findings",
+    "get_securityhub_findings",
+    "get_trusted_advisor_findings",
+    # Storage security functions
+    "check_storage_encryption",
 ]

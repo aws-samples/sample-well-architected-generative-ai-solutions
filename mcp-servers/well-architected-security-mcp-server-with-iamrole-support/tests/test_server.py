@@ -35,14 +35,10 @@ from unittest import mock
 
 import pytest
 
-from src.server import (
-    check_network_security_tool,
-    check_security_services,
-    check_storage_encryption_tool,
-    context_storage,
-    get_stored_security_context,
-    list_services_in_region_tool,
-)
+from src.server import context_storage
+from src.tools.security import check_security_services, get_stored_security_context
+from src.tools.storage import check_storage_encryption_tool
+from src.tools.network import check_network_security_tool, list_services_in_region_tool
 
 
 @pytest.mark.asyncio
@@ -50,12 +46,12 @@ async def test_check_security_services(mock_ctx, mock_boto3_session):
     """Test the check_security_services function."""
     # Mock the security service check functions
     with (
-        mock.patch("src.server.check_guard_duty") as mock_guard_duty,
-        mock.patch("src.server.check_inspector") as mock_inspector,
-        mock.patch("src.server.check_access_analyzer") as mock_access_analyzer,
-        mock.patch("src.server.check_security_hub") as mock_security_hub,
-        mock.patch("src.server.check_trusted_advisor") as mock_trusted_advisor,
-        mock.patch("src.server.check_macie") as mock_macie,
+        mock.patch("src.tools.security.check_guard_duty") as mock_guard_duty,
+        mock.patch("src.tools.security.check_inspector") as mock_inspector,
+        mock.patch("src.tools.security.check_access_analyzer") as mock_access_analyzer,
+        mock.patch("src.tools.security.check_security_hub") as mock_security_hub,
+        mock.patch("src.tools.security.check_trusted_advisor") as mock_trusted_advisor,
+        mock.patch("src.tools.security.check_macie") as mock_macie,
     ):
         # Set up mock return values
         mock_guard_duty.return_value = {"enabled": True, "message": "GuardDuty is enabled"}
@@ -115,8 +111,8 @@ async def test_check_security_services(mock_ctx, mock_boto3_session):
 @pytest.mark.asyncio
 async def test_check_security_services_error(mock_ctx):
     """Test the check_security_services function when an error occurs."""
-    # Mock boto3.Session to raise an exception
-    with mock.patch("boto3.Session") as mock_session:
+    # Mock create_aws_session to raise an exception
+    with mock.patch("src.tools.security.create_aws_session") as mock_session:
         mock_session.side_effect = Exception("Test error")
 
         # Call the function
@@ -140,7 +136,7 @@ async def test_check_security_services_error(mock_ctx):
 async def test_get_security_findings_guardduty(mock_ctx):
     """Test the get_security_findings function for GuardDuty."""
     # Create a mock for the entire get_security_findings function
-    with mock.patch("src.server.get_security_findings") as mock_get_findings:
+    with mock.patch("src.tools.security.get_security_findings") as mock_get_findings:
         # Set up the mock to return a specific value
         mock_result = {
             "service": "guardduty",
@@ -181,7 +177,7 @@ async def test_get_security_findings_guardduty(mock_ctx):
 async def test_get_security_findings_unsupported_service(mock_ctx):
     """Test the get_security_findings function with an unsupported service."""
     # Create a mock for the get_security_findings function
-    with mock.patch("src.server.get_security_findings") as mock_get_findings:
+    with mock.patch("src.tools.security.get_security_findings") as mock_get_findings:
         # Set up the mock to raise a ValueError
         mock_get_findings.side_effect = ValueError("Unsupported security service: unsupported")
 
@@ -209,7 +205,7 @@ async def test_get_security_findings_with_context_data(mock_ctx):
     }
 
     # Create a mock for the get_security_findings function
-    with mock.patch("src.server.get_security_findings") as mock_get_findings:
+    with mock.patch("src.tools.security.get_security_findings") as mock_get_findings:
         # Set up the mock to return a specific value
         mock_result = {
             "service": "guardduty",
@@ -302,7 +298,7 @@ async def test_get_stored_security_context_not_available(mock_ctx):
 async def test_check_storage_encryption_tool(mock_ctx, mock_boto3_session):
     """Test the check_storage_encryption_tool function."""
     # Mock the check_storage_encryption function
-    with mock.patch("src.server.check_storage_encryption") as mock_check:
+    with mock.patch("src.tools.storage.check_storage_encryption") as mock_check:
         # Set up the mock to return a specific value
         mock_result = {
             "region": "us-east-1",
@@ -356,7 +352,7 @@ async def test_check_storage_encryption_tool(mock_ctx, mock_boto3_session):
 async def test_check_storage_encryption_tool_error(mock_ctx, mock_boto3_session):
     """Test the check_storage_encryption_tool function when an error occurs."""
     # Mock check_storage_encryption to raise an exception
-    with mock.patch("src.server.check_storage_encryption") as mock_check:
+    with mock.patch("src.tools.storage.check_storage_encryption") as mock_check:
         mock_check.side_effect = Exception("Test error")
 
         # Call the function
@@ -380,7 +376,7 @@ async def test_check_storage_encryption_tool_error(mock_ctx, mock_boto3_session)
 async def test_list_services_in_region_tool(mock_ctx, mock_boto3_session):
     """Test the list_services_in_region_tool function."""
     # Mock the list_services_in_region function
-    with mock.patch("src.server.list_services_in_region") as mock_list:
+    with mock.patch("src.tools.network.list_services_in_region") as mock_list:
         # Set up the mock to return a specific value
         mock_result = {
             "region": "us-east-1",
@@ -412,7 +408,7 @@ async def test_list_services_in_region_tool(mock_ctx, mock_boto3_session):
 async def test_list_services_in_region_tool_error(mock_ctx, mock_boto3_session):
     """Test the list_services_in_region_tool function when an error occurs."""
     # Mock list_services_in_region to raise an exception
-    with mock.patch("src.server.list_services_in_region") as mock_list:
+    with mock.patch("src.tools.network.list_services_in_region") as mock_list:
         mock_list.side_effect = Exception("Test error")
 
         # Call the function
@@ -436,7 +432,7 @@ async def test_list_services_in_region_tool_error(mock_ctx, mock_boto3_session):
 async def test_check_network_security_tool(mock_ctx, mock_boto3_session):
     """Test the check_network_security_tool function."""
     # Mock the check_network_security function
-    with mock.patch("src.server.check_network_security") as mock_check:
+    with mock.patch("src.tools.network.check_network_security") as mock_check:
         # Set up the mock to return a specific value
         mock_result = {
             "region": "us-east-1",
@@ -490,7 +486,7 @@ async def test_check_network_security_tool(mock_ctx, mock_boto3_session):
 async def test_check_network_security_tool_error(mock_ctx, mock_boto3_session):
     """Test the check_network_security_tool function when an error occurs."""
     # Mock check_network_security to raise an exception
-    with mock.patch("src.server.check_network_security") as mock_check:
+    with mock.patch("src.tools.network.check_network_security") as mock_check:
         mock_check.side_effect = Exception("Test error")
 
         # Call the function

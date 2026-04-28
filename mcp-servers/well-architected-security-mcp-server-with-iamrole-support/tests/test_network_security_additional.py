@@ -1125,7 +1125,10 @@ async def test_check_network_security_cloudfront_not_in_us_east_1(mock_ctx, mock
             assert result["resources_checked"] == 0
             assert result["compliant_resources"] == 0
             assert result["non_compliant_resources"] == 0
-            assert "cloudfront" not in result["compliance_by_service"]
+            assert "cloudfront" in result["compliance_by_service"]
+            assert result["compliance_by_service"]["cloudfront"]["resources_checked"] == 0
+            assert result["compliance_by_service"]["cloudfront"]["non_compliant_resources"] == 0
+            assert "note" in result["compliance_by_service"]["cloudfront"]
             assert len(result["resource_details"]) == 0
             assert len(result["recommendations"]) > 0
 
