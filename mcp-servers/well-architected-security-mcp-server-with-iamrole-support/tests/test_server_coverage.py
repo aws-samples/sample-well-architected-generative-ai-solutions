@@ -35,10 +35,10 @@ from unittest import mock
 
 import pytest
 
-from src.server import (
+from src.server import main
+from src.prompts import (
     check_network_security_prompt,
     check_storage_security_prompt,
-    main,
     security_assessment_precheck,
 )
 
