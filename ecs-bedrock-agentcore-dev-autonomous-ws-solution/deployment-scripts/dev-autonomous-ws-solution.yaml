@@ -419,11 +419,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub '${AWS::StackName}-static-${AWS::AccountId}'
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        IgnorePublicAcls: false
-        BlockPublicPolicy: false
-        RestrictPublicBuckets: false
 
   StaticBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -432,13 +427,26 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: AllowCloudFrontRead
+          - Sid: AllowCloudFrontOAC
             Effect: Allow
-            Principal: '*'
+            Principal:
+              Service: cloudfront.amazonaws.com
             Action: s3:GetObject
             Resource: !Sub '${StaticBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
 
   # ─── CloudFront ───
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -448,6 +456,7 @@ Resources:
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt StaticBucket.RegionalDomainName
+            OriginAccessControlId: !Ref OriginAccessControl
             S3OriginConfig:
               OriginAccessIdentity: ''
           - Id: ALBOrigin
