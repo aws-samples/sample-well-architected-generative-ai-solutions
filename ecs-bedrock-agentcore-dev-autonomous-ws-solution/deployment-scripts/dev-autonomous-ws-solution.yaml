@@ -38,9 +38,9 @@ Parameters:
     Description: Existing AgentCore Runtime ARN (leave empty to create new one)
   CreateAgentCoreRuntime:
     Type: String
-    Default: 'false'
+    Default: 'true'
     AllowedValues: ['true', 'false']
-    Description: Set to true to create AgentCore Runtime (requires agent image in ECR)
+    Description: Create AgentCore Runtime (set to false only if using an existing runtime ARN)
 
 Conditions:
   ShouldCreateRuntime: !Equals [!Ref CreateAgentCoreRuntime, 'true']
@@ -393,6 +393,24 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub '${AWS::StackName}-static-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        IgnorePublicAcls: false
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+
+  StaticBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StaticBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub '${StaticBucket.Arn}/*'
 
   # ─── CloudFront ───
   Distribution:
