@@ -170,7 +170,7 @@ def create_orchestrator_app() -> FastAPI:
                     # Inject memory context from past conversations
                     try:
                         mem_ctx = await asyncio.get_event_loop().run_in_executor(
-                            None, lambda: retrieve_context(user, user_text))
+                            None, lambda: retrieve_context(user, user_text, repo_url))
                         if mem_ctx:
                             user_input += mem_ctx
                     except Exception as e:
@@ -218,12 +218,14 @@ async def _run_task(task_id: str, user_input: str, ws: WebSocket, session: dict,
         task["completed"] = datetime.utcnow().isoformat()
         save_task(user, task)
         _save_session(session)
-        # Store conversation in AgentCore Memory
+        # Store conversation in AgentCore Memory with repo context
         try:
             user_text = task.get("input", "")
             if user_text and brief:
+                t_repo = task.get("origin", "")
+                t_branch = task.get("branch", "")
                 await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: store_conversation(user, session["id"], user_text, brief))
+                    None, lambda: store_conversation(user, session["id"], user_text, brief, t_repo, t_branch))
         except Exception as e:
             logger.debug(f"Memory store skipped: {e}")
         await ws.send_json({
