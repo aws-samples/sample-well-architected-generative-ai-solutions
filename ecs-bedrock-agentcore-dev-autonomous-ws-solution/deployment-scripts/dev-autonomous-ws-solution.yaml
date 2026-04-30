@@ -229,6 +229,15 @@ Resources:
                   - dynamodb:DeleteItem
                 Resource:
                   - !GetAtt TaskTable.Arn
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:CreateEvent
+                  - bedrock-agentcore:GetEvent
+                  - bedrock-agentcore:ListEvents
+                  - bedrock-agentcore:RetrieveMemories
+                  - bedrock-agentcore:SearchMemoryRecords
+                Resource:
+                  - !GetAtt AgentCoreMemory.MemoryArn
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -269,6 +278,8 @@ Resources:
               Value: !Ref TaskLogBucket
             - Name: TASK_TABLE_NAME
               Value: !Ref TaskTable
+            - Name: AGENTCORE_MEMORY_ID
+              Value: !Ref AgentCoreMemory
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -377,6 +388,21 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
+
+  # ─── AgentCore Memory ───
+  AgentCoreMemory:
+    Type: AWS::BedrockAgentCore::Memory
+    Properties:
+      Name: !Join ['_', !Split ['-', !Sub '${AWS::StackName}_memory']]
+      Description: !Sub 'Persistent memory for ${AWS::StackName} agent conversations'
+      EventExpiryDuration: 30
+      MemoryStrategies:
+        - SemanticMemoryStrategy:
+            Name: SemanticFacts
+            NamespaceTemplates: ['/facts/{actorId}/']
+        - SummaryMemoryStrategy:
+            Name: SessionSummarizer
+            NamespaceTemplates: ['/summaries/{actorId}/{sessionId}/']
 
   # ─── S3 Buckets ───
   SourceBucket:
@@ -727,3 +753,7 @@ Outputs:
     Value: !Ref GhToken
   TaskTableName:
     Value: !Ref TaskTable
+  AgentCoreMemoryId:
+    Value: !Ref AgentCoreMemory
+  AgentCoreMemoryArn:
+    Value: !GetAtt AgentCoreMemory.MemoryArn

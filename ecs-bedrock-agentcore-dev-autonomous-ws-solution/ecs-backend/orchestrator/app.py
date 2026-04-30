@@ -15,6 +15,7 @@ from orchestrator.services.agentcore_service import invoke_agentcore_runtime, st
 from orchestrator.services.task_memory_service import save_task, get_recent_tasks
 from orchestrator.services.github_service import get_repo_gitgraph
 from orchestrator.services.devtool_service import enrich_task
+from orchestrator.services.agentcore_memory_service import store_conversation, retrieve_context
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,14 @@ def create_orchestrator_app() -> FastAPI:
                             repo_ctx += f" branch={branch}"
                         repo_ctx += "\nClone or use this repo for all code operations.\n"
                     user_input = f"{prefix}User request: {user_text}{repo_ctx}"
+                    # Inject memory context from past conversations
+                    try:
+                        mem_ctx = await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: retrieve_context(user, user_text))
+                        if mem_ctx:
+                            user_input += mem_ctx
+                    except Exception as e:
+                        logger.debug(f"Memory retrieval skipped: {e}")
                     for tool_name in tools_to_run:
                         task_id = str(uuid.uuid4())[:8]
                         task = {
@@ -209,6 +218,14 @@ async def _run_task(task_id: str, user_input: str, ws: WebSocket, session: dict,
         task["completed"] = datetime.utcnow().isoformat()
         save_task(user, task)
         _save_session(session)
+        # Store conversation in AgentCore Memory
+        try:
+            user_text = task.get("input", "")
+            if user_text and brief:
+                await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: store_conversation(user, session["id"], user_text, brief))
+        except Exception as e:
+            logger.debug(f"Memory store skipped: {e}")
         await ws.send_json({
             "type": "task_complete",
             "task_id": task_id,
