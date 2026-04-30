@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Developer Assistant Dev-V2 — Streaming</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f1b2d;color:#d1d5db;height:100vh;display:flex;flex-direction:column}
+header{background:#161e2d;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a3a50}
+header h1{font-size:16px;color:#fff;font-weight:600}
+#status{font-size:12px;display:flex;align-items:center;gap:6px}
+#status .dot{width:8px;height:8px;border-radius:50%}
+.repo-bar{background:#1a2740;padding:8px 20px;border-bottom:1px solid #2a3a50;font-size:13px;color:#9ca3af;display:flex;align-items:center;gap:8px}
+.repo-bar a{color:#60a5fa;text-decoration:none;word-break:break-all}
+.repo-bar a:hover{text-decoration:underline}
+.main{flex:1;display:flex;overflow:hidden}
+.left-panel{flex:1;display:flex;flex-direction:column;min-width:0;width:50%;min-height:0}
+.chat-panel{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+#chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:78%;padding:10px 14px;border-radius:8px;font-size:14px;line-height:1.6;word-wrap:break-word}
+.msg.user{align-self:flex-end;background:#0073bb;color:#fff}
+.msg.ai{align-self:flex-start;background:#1a2740;color:#e0e0e0;border-left:3px solid #3b82f6}
+.msg.ai.ack{border-left-color:#f59e0b}
+.msg.ai.streaming{border-left-color:#22c55e}
+.msg pre{background:#0a1220;padding:8px;border-radius:4px;overflow-x:auto;font-size:12px;margin:6px 0}
+.msg code{background:#0a1220;padding:1px 4px;border-radius:3px;font-size:12px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.cursor{display:inline-block;width:7px;height:14px;background:#22c55e;margin-left:2px;vertical-align:text-bottom;animation:blink .8s step-end infinite}
+.input-bar{padding:12px 16px;background:#161e2d;border-top:1px solid #2a3a50;display:flex;gap:8px}
+.input-bar textarea{flex:1;background:#0f1b2d;border:1px solid #2a3a50;color:#fff;padding:8px 12px;border-radius:6px;resize:none;font-size:14px;font-family:inherit;outline:none}
+.input-bar textarea:focus{border-color:#3b82f6}
+.input-bar button{background:#0073bb;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500}
+.input-bar button:hover{background:#005a94}
+.right-panel{width:50%;background:#161e2d;border-left:1px solid #2a3a50;display:flex;flex-direction:column;transition:width .2s}
+.right-panel.collapsed{width:40px}
+.task-header{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a3a50;min-height:44px}
+.task-header h2{font-size:14px;color:#fff;font-weight:600;white-space:nowrap}
+.right-panel.collapsed .task-header h2,.right-panel.collapsed .task-count,.right-panel.collapsed #task-list{display:none}
+.toggle-btn{background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px;padding:2px 6px}
+.toggle-btn:hover{color:#fff}
+.task-count{font-size:11px;color:#9ca3af;padding:0 12px 4px}
+#task-list{flex:1;overflow-y:auto;padding:6px}
+.task-item{margin:4px 6px;border-radius:6px;background:#0f1b2d;border:1px solid #2a3a50;overflow:hidden}
+.task-row{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;user-select:none}
+.task-row:hover{background:#1a2740}
+.task-icon{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:16px;height:16px;border:2px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+.dot-green{width:10px;height:10px;border-radius:50%;background:#22c55e}
+.dot-red{width:10px;height:10px;border-radius:50%;background:#ef4444}
+.task-label{flex:1;font-size:13px;color:#d1d5db;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-chevron{color:#6b7280;font-size:12px;transition:transform .15s}
+.task-chevron.open{transform:rotate(90deg)}
+.task-body{padding:0 12px 12px;font-size:13px;line-height:1.6;color:#b0b8c8;display:none;border-top:1px solid #2a3a50}
+.task-body.open{display:block;padding-top:10px}
+.task-body pre{background:#0a1220;padding:8px;border-radius:4px;overflow-x:auto;font-size:12px;margin:4px 0;white-space:pre-wrap}
+.gitgraph-section{border-bottom:1px solid #2a3a50;display:flex;flex-direction:column;min-height:180px;max-height:35%}
+.gitgraph-header{padding:10px 12px;font-size:14px;color:#fff;font-weight:600;border-bottom:1px solid #2a3a50;display:flex;align-items:center;justify-content:space-between}
+.gitgraph-header button{background:#1a2740;color:#60a5fa;border:1px solid #2a3a50;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px}
+.gitgraph-header button:hover{background:#253350}
+#gitgraph-container{flex:1;overflow:auto;padding:12px;display:flex;align-items:center;justify-content:center}
+#gitgraph-container .mermaid{width:100%}
+#gitgraph-container .mermaid svg{max-width:100%}
+.gitgraph-placeholder{color:#6b7280;font-size:13px;text-align:center}
+.welcome{padding:24px;max-width:640px;margin:auto}
+.welcome h2{color:#fff;font-size:20px;margin-bottom:6px}
+.welcome .desc{color:#9ca3af;font-size:14px;line-height:1.6;margin-bottom:16px}
+.welcome .examples{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.welcome .ex{background:#1a2740;border:1px solid #2a3a50;border-radius:8px;padding:10px 14px;cursor:pointer;color:#d1d5db;font-size:13px;transition:border-color .15s}
+.welcome .ex:hover{border-color:#3b82f6}
+.welcome .ex span{color:#6b7280;font-size:11px;display:block;margin-bottom:2px}
+.welcome .note{background:#1a1a2e;border:1px solid #3b3a5c;border-radius:8px;padding:12px 14px;font-size:12px;color:#a5b4fc;line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛠️ Developer Assistant Dev-V2 — Streaming</h1>
+  <div style="display:flex;align-items:center;gap:16px">
+    <a href="/task-log.html" style="color:#60a5fa;font-size:13px;text-decoration:none">📋 Task Log</a>
+    <div id="status"><span class="dot" id="status-dot"></span><span id="status-text"></span></div>
+  </div>
+</header>
+<div class="repo-bar">📦 Target Repo: <a id="repo-link" href="#" target="_blank"></a></div>
+<div class="main">
+  <div class="left-panel">
+    <div class="gitgraph-section">
+      <div class="gitgraph-header">
+        <span>🌿 Git Graph</span>
+        <button onclick="refreshGitGraph()">↻ Refresh</button>
+      </div>
+      <div id="gitgraph-container">
+        <div class="gitgraph-placeholder">Loading git graph...</div>
+      </div>
+    </div>
+    <div class="chat-panel">
+      <div id="chat-messages">
+        <div class="welcome" id="welcome">
+          <h2>Welcome to Developer Assistant</h2>
+          <p class="desc">AI-powered development assistant with <strong>real-time streaming</strong>. Responses appear as the agent generates them — no more waiting for the full result.</p>
+          <div class="examples">
+            <div class="ex" onclick="tryExample(this)"><span>🧪 Testing</span>Create a unittest package and make the coverage &gt; 80%</div>
+            <div class="ex" onclick="tryExample(this)"><span>🏗️ Architecture</span>Do a quick software architecture review in my dev branch</div>
+            <div class="ex" onclick="tryExample(this)"><span>🔀 Pull Request</span>Create a PR for me</div>
+          </div>
+          <div class="note">📌 <strong>Repository Context</strong> — This assistant operates on the configured target repository. The git graph above shows the current branch structure to help you plan your tasks.</div>
+        </div>
+      </div>
+      <div class="input-bar">
+        <textarea id="input" rows="2" placeholder="Ask about your repository, request code changes..."></textarea>
+        <button id="send-btn" onclick="send()">Send</button>
+      </div>
+    </div>
+  </div>
+  <div class="right-panel" id="right-panel">
+    <div class="task-header">
+      <h2>📋 Tasks</h2>
+      <button class="toggle-btn" onclick="togglePanel()" title="Toggle panel">◀</button>
+    </div>
+    <div class="task-count" id="task-count"></div>
+    <div id="task-list"></div>
+  </div>
+</div>
+<script src="/config.js"></script>
+<script>
+const TARGET_REPO_URL=window.APP_CONFIG?.targetRepoUrl||'https://github.com/juntinyeh-worker/sandbox-dev-agent-sample';
+const chatEl=document.getElementById('chat-messages'),inputEl=document.getElementById('input'),taskListEl=document.getElementById('task-list'),taskCountEl=document.getElementById('task-count'),panel=document.getElementById('right-panel'),statusDot=document.getElementById('status-dot'),statusText=document.getElementById('status-text');
+const tasks={},streamBubbles={},streamText={};
+let ws,lastUserMsg='',pendingName='';
+
+(function initRepoBar(){
+  const link=document.getElementById('repo-link');
+  link.href=TARGET_REPO_URL;link.textContent=TARGET_REPO_URL;
+})();
+
+mermaid.initialize({startOnLoad:false,theme:'dark',gitGraph:{showCommitLabel:true,mainBranchName:'main'}});
+
+const SAMPLE_GITGRAPH=`gitGraph
+  commit id: "init"
+  commit id: "feat-1"
+  branch dev
+  checkout dev
+  commit id: "dev-1"
+  commit id: "dev-2"
+  checkout main
+  commit id: "hotfix"
+  checkout dev
+  commit id: "dev-3"
+  checkout main
+  merge dev id: "merge-dev"
+  commit id: "release"`;
+
+async function renderGitGraph(graphDef){
+  const container=document.getElementById('gitgraph-container');
+  container.innerHTML='';
+  const div=document.createElement('div');div.className='mermaid';div.textContent=graphDef;
+  container.appendChild(div);
+  try{await mermaid.run({nodes:[div]})}catch(e){container.innerHTML='<div class="gitgraph-placeholder">⚠️ Failed to render git graph: '+e.message+'</div>'}
+}
+
+function refreshGitGraph(){
+  document.getElementById('gitgraph-container').innerHTML='<div class="gitgraph-placeholder">Loading git graph...</div>';
+  fetch('/api/repo/graph?repo='+encodeURIComponent(TARGET_REPO_URL))
+    .then(r=>r.json())
+    .then(d=>{if(d.graph){window._lastGitGraph=d.graph;renderGitGraph(d.graph)}else renderGitGraph(SAMPLE_GITGRAPH)})
+    .catch(()=>renderGitGraph(window._lastGitGraph||SAMPLE_GITGRAPH));
+}
+
+function connect(){
+  const proto=location.protocol==='https:'?'wss:':'ws:';
+  const url=window.APP_CONFIG?.api?.wsEndpoint||`${proto}//${location.host}/ws`;
+  ws=new WebSocket(url);
+  ws.onopen=()=>setStatus(true);
+  ws.onclose=()=>{setStatus(false);setTimeout(connect,3000)};
+  ws.onmessage=e=>handleMsg(JSON.parse(e.data));
+}
+
+function setStatus(on){statusDot.style.background=on?'#22c55e':'#ef4444';statusText.textContent=on?'Connected':'Disconnected'}
+
+function send(){
+  const t=inputEl.value.trim();
+  if(!t||!ws||ws.readyState!==1)return;
+  lastUserMsg=t;addChat('user',t);
+  ws.send(JSON.stringify({text:t,repo:TARGET_REPO_URL}));
+  inputEl.value='';
+}
+
+inputEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+
+function briefName(msg){
+  const w=msg.replace(/[?!.,]+/g,'').trim().split(/\s+/);
+  if(w.length<=4)return w.map(s=>s[0].toUpperCase()+s.slice(1)).join(' ');
+  const skip=new Set(['what','whats','what\'s','is','my','the','a','an','can','you','me','please','do','how','are','i','to','of','for','in','on','about']);
+  const key=w.filter(s=>!skip.has(s.toLowerCase())).slice(0,4);
+  return(key.length?key:w.slice(0,3)).map(s=>s[0].toUpperCase()+s.slice(1)).join(' ');
+}
+
+function handleMsg(m){
+  switch(m.type){
+    case 'ack':addChat('ai ack',m.message);pendingName=briefName(lastUserMsg);break;
+    case 'task_started':
+      tasks[m.task_id]={status:'running',name:pendingName||'Task',text:'',data:null};
+      streamText[m.task_id]='';
+      renderTaskItem(m.task_id);break;
+    case 'chat':addChat('ai',m.message);break;
+    case 'task_chunk':onTaskChunk(m.task_id,m.text);break;
+    case 'task_complete':onTaskComplete(m.task_id,m.brief||m.message,m.data);break;
+    case 'task_error':onTaskError(m.task_id,m.message);break;
+    case 'detail':if(tasks[m.task_id]&&m.data){tasks[m.task_id].data=m.data;refreshTaskUI(m.task_id)}break;
+    case 'brief':addChat('ai',m.message);break;
+    case 'gitgraph':window._lastGitGraph=m.graph;renderGitGraph(m.graph);break;
+  }
+}
+
+/* ── Streaming ── */
+function onTaskChunk(taskId,text){
+  if(!streamText[taskId])streamText[taskId]='';
+  streamText[taskId]+=text;
+  if(!streamBubbles[taskId]){
+    const d=document.createElement('div');d.className='msg ai streaming';d.id='stream-'+taskId;
+    d.innerHTML=esc(text)+'<span class="cursor"></span>';
+    chatEl.appendChild(d);streamBubbles[taskId]=d;
+  }else{
+    streamBubbles[taskId].innerHTML=renderMd(streamText[taskId])+'<span class="cursor"></span>';
+  }
+  chatEl.scrollTop=chatEl.scrollHeight;
+  if(tasks[taskId]){
+    tasks[taskId].text=streamText[taskId];
+    const body=document.querySelector('#task-'+taskId+' .task-body');
+    if(body)body.innerHTML=renderMd(streamText[taskId])+'<span class="cursor"></span>';
+  }
+}
+
+function onTaskComplete(taskId,brief,data){
+  const finalText=streamText[taskId]||brief;
+  if(streamBubbles[taskId]){
+    streamBubbles[taskId].classList.remove('streaming');
+    streamBubbles[taskId].innerHTML=renderMd(finalText);
+    delete streamBubbles[taskId];
+  }else{addChat('ai',finalText)}
+  delete streamText[taskId];
+  chatEl.scrollTop=chatEl.scrollHeight;
+  updateTask(taskId,'done',finalText,data);
+}
+
+function onTaskError(taskId,message){
+  if(streamBubbles[taskId]){
+    streamBubbles[taskId].classList.remove('streaming');
+    streamBubbles[taskId].innerHTML=renderMd(streamText[taskId]||'')+'<br/><strong style="color:#ef4444">Error: '+esc(message)+'</strong>';
+    delete streamBubbles[taskId];
+  }else{addChat('ai','<strong style="color:#ef4444">Error: '+esc(message)+'</strong>')}
+  delete streamText[taskId];
+  updateTask(taskId,'error',message);
+}
+
+/* ── Chat & Task UI ── */
+function addChat(cls,text){
+  const d=document.createElement('div');d.className='msg '+cls;
+  d.innerHTML=cls.startsWith('ai')?renderMd(text):esc(text);
+  chatEl.appendChild(d);chatEl.scrollTop=chatEl.scrollHeight;
+}
+
+function tryExample(el){inputEl.value=el.childNodes[el.childNodes.length-1].textContent.trim();send()}
+
+function loadRecentTasks(){
+  fetch('/api/orchestrator/tasks?user=default&limit=50&repo='+encodeURIComponent(TARGET_REPO_URL))
+    .then(r=>r.json())
+    .then(d=>{
+      (d.tasks||[]).reverse().forEach(t=>{
+        if(tasks[t.task_id])return;
+        tasks[t.task_id]={status:t.status||'done',name:t.input?briefName(t.input):'Task',text:t.brief||t.error||'',data:null,origin:t.origin||'',branch:t.branch||'',commit:t.commit||''};
+        renderTaskItem(t.task_id);refreshTaskUI(t.task_id);
+      });
+    }).catch(()=>{});
+}
+
+function updateTask(id,status,text,data){
+  if(!tasks[id]){tasks[id]={status:'running',name:'Task',text:'',data:null};renderTaskItem(id)}
+  const t=tasks[id];t.status=status;if(text!=null)t.text=text;if(data!=null)t.data=data;refreshTaskUI(id);
+}
+
+function renderTaskItem(id){
+  const t=tasks[id],item=document.createElement('div');
+  item.className='task-item';item.id='task-'+id;
+  item.innerHTML=`<div class="task-row" onclick="toggleTask('${id}')"><div class="task-icon"><div class="spinner"></div></div><div class="task-label">${esc(t.name)} (${id})</div><span class="task-chevron">▶</span></div><div class="task-body"></div>`;
+  taskListEl.prepend(item);updateCount();
+  if(panel.classList.contains('collapsed'))togglePanel();
+}
+
+function refreshTaskUI(id){
+  const t=tasks[id],el=document.getElementById('task-'+id);if(!el)return;
+  const icon=el.querySelector('.task-icon'),body=el.querySelector('.task-body');
+  if(t.status==='done')icon.innerHTML='<div class="dot-green"></div>';
+  else if(t.status==='error')icon.innerHTML='<div class="dot-red"></div>';
+  let html='';
+  if(t.origin)html+='<div style="font-size:11px;color:#6b7280;margin-bottom:4px">📦 '+esc(t.origin)+(t.branch?' @ '+esc(t.branch):'')+(t.commit?' ('+esc(t.commit)+')':'')+'</div>';
+  if(t.text)html+=renderMd(t.text);
+  if(t.data)html+='<pre>'+esc(JSON.stringify(t.data,null,2))+'</pre>';
+  body.innerHTML=html||'<em>No details yet.</em>';
+  updateCount();
+}
+
+function toggleTask(id){const el=document.getElementById('task-'+id);el.querySelector('.task-body').classList.toggle('open');el.querySelector('.task-chevron').classList.toggle('open')}
+function togglePanel(){panel.classList.toggle('collapsed');panel.querySelector('.toggle-btn').textContent=panel.classList.contains('collapsed')?'▶':'◀'}
+function updateCount(){const ids=Object.keys(tasks),done=ids.filter(k=>tasks[k].status==='done').length,err=ids.filter(k=>tasks[k].status==='error').length,run=ids.length-done-err;taskCountEl.textContent=`${ids.length} task${ids.length!==1?'s':''} — ${run} running, ${done} done${err?', '+err+' error':''}`}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function renderMd(text){
+  return esc(text)
+    .replace(/```(\w*)\n([\s\S]*?)```/g,'<pre><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^### (.+)$/gm,'<div style="font-size:15px;font-weight:700;margin:10px 0 4px">$1</div>')
+    .replace(/^## (.+)$/gm,'<div style="font-size:16px;font-weight:700;margin:12px 0 4px">$1</div>')
+    .replace(/^# (.+)$/gm,'<div style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</div>')
+    .replace(/^[*-] (.+)$/gm,'<li style="margin-left:16px">$1</li>')
+    .replace(/^\d+\. (.+)$/gm,'<li style="margin-left:16px;list-style-type:decimal">$1</li>')
+    .replace(/^---$/gm,'<hr style="border:none;border-top:1px solid #555;margin:8px 0">')
+    .replace(/\n\n/g,'<br/><br/>').replace(/\n/g,'<br/>');
+}
+
+loadRecentTasks();refreshGitGraph();connect();
+</script>
+</body>
+</html>

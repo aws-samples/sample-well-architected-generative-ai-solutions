@@ -1,0 +1,11 @@
+version: 0.2
+phases:
+  build:
+    commands:
+      - echo Deploying frontend to S3...
+      - cd frontend
+      - aws s3 sync . s3://$STATIC_BUCKET/ --delete --exclude "config.js"
+  post_build:
+    commands:
+      - echo Invalidating CloudFront cache...
+      - aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
