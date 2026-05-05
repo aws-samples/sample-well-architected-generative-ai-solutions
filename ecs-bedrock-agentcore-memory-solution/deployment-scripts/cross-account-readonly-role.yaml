@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'OpenAB Cross-Account ReadOnly Role — One-click deploy to grant read-only scan access'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: {default: 'Trust Configuration'}
+        Parameters: [TrustedAccountId, TrustedRoleName, ExternalId]
+    ParameterLabels:
+      TrustedAccountId: {default: 'OpenAB Operator Account ID'}
+      TrustedRoleName: {default: 'MCP Server Role Name'}
+      ExternalId: {default: 'External ID (do not change)'}
+
+Parameters:
+  TrustedAccountId:
+    Type: String
+    AllowedPattern: '^\d{12}$'
+    ConstraintDescription: Must be a 12-digit AWS account ID
+    Description: The AWS account ID that hosts the OpenAB platform
+  TrustedRoleName:
+    Type: String
+    Default: 'sandbox-longrun-0426-McpAssumeRole'
+    Description: The IAM role name in the operator account that will assume this role
+  ExternalId:
+    Type: String
+    Default: 'openab-scan'
+    MinLength: 4
+    Description: Shared secret for confused deputy protection
+
+Resources:
+  ReadOnlyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: OpenAB-ReadOnlyAccess
+      Description: !Sub 'Grants read-only access to OpenAB platform in account ${TrustedAccountId}'
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${TrustedAccountId}:role/${TrustedRoleName}'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+        - arn:aws:iam::aws:policy/SecurityAudit
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt ReadOnlyRole.Arn
+    Description: Role ARN — the OpenAB platform will use this to access your account
+  TrustedBy:
+    Value: !Sub 'Account ${TrustedAccountId} / Role ${TrustedRoleName}'
+  Permissions:
+    Value: 'ReadOnlyAccess + SecurityAudit (no write permissions)'
+  HowToRevoke:
+    Value: 'Delete this CloudFormation stack to immediately revoke access'
