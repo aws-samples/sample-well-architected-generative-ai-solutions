@@ -85,7 +85,7 @@ header h1{font-size:16px;color:#fff;font-weight:600}
           <div class="ex" onclick="tryExample(this)"><span>🏗️ Infrastructure Review</span>Review my VPC setup including subnets, route tables, and NAT gateways, and flag any misconfigurations</div>
           <div class="ex" onclick="tryExample(this)"><span>📦 Storage &amp; Compliance</span>List all S3 buckets that have public access enabled and check if server-side encryption is configured</div>
         </div>
-        <div class="note">📌 <strong>Multi-Account Support</strong> — This assistant can scan other AWS accounts. Just ask: <em>"scan account 123456789012 for public security groups"</em> and you'll be guided through a one-click role deployment to grant read-only access.</div>
+        <div class="note">📌 <strong>Multi-Account Support</strong> — This assistant can scan other AWS accounts. <a href="https://us-west-2.console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/quickcreate?stackName=OpenAB-ReadOnlyAccess&templateURL=https%3A%2F%2Fsandbox-longrun-0426-source-256358067059-us-west-2.s3.us-west-2.amazonaws.com%2Ftemplates%2Fcross-account-readonly-role.yaml&param_TrustedAccountId=256358067059&param_TrustedRoleName=sandbox-longrun-0426-McpAssumeRole&param_ExternalId=openab-scan" target="_blank" rel="noopener" style="color:#4a9eff;font-weight:600">Click here to deploy the ReadOnly role</a> in your target account, then prompt like: <em>"Scan account 123456789012 to see if there is any Security Findings"</em></div>
         </div>
       </div>
     </div>

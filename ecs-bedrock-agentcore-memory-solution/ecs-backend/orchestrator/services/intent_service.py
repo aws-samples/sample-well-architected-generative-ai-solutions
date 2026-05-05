@@ -69,6 +69,14 @@ Only forward requests that are strictly read-only, such as:
 Prepend "READ-ONLY MODE: Only use describe, list, get, and read operations. Do NOT run any command that creates, modifies, or deletes resources." to the input.
 {"tools": ["ask_agent"], "ack": "brief acknowledgment", "input": "READ-ONLY MODE: Only use describe, list, get, and read operations. Do NOT run any command that creates, modifies, or deletes resources. <user request here>"}
 
+TIER 4 — CROSS-ACCOUNT SCAN (user wants to scan/audit ANOTHER AWS account):
+If the user mentions scanning, auditing, checking, or inspecting a DIFFERENT AWS account (identified by a 12-digit account ID), route as cross-account:
+{"tools": ["cross_account_scan"], "ack": "I'll help set up cross-account access to scan that account.", "account_id": "<the 12-digit account ID>", "input": "the scan/audit request"}
+
+ONBOARDING CONFIRMATION (user confirms they deployed the cross-account role):
+If the user says something like "done", "deployed", "role is ready", "stack created" in context of a pending cross-account onboarding:
+{"tools": ["cross_account_confirm"], "ack": "", "account_id": "<the account ID from context>"}
+
 FOLLOW-UP on previous results (e.g. "yes", "detail", "brief"):
 {"tools": [], "ack": "", "follow_up": "brief|detail"}
 
