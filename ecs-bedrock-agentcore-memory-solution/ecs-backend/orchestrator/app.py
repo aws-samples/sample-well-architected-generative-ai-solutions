@@ -63,6 +63,20 @@ def create_orchestrator_app() -> FastAPI:
         result = await invoke_agentcore_runtime("ping")
         return {"status": "ok", "runtime_response": result.get("response", str(result))[:200]}
 
+    @app.get("/api/orchestrator/tasks/{task_id}/status")
+    async def check_task_status(task_id: str):
+        """Poll AgentCore runtime for a task's status. Used by frontend Check button."""
+        from orchestrator.services.agentcore_service import _invoke
+        import asyncio
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: _invoke({"check_task": task_id}, task_id))
+            status = result.get("status", "unknown")
+            response = result.get("response", "")
+            return {"task_id": task_id, "status": status, "result": response}
+        except Exception as e:
+            return {"task_id": task_id, "status": "error", "result": str(e)[:200]}
+
     @app.get("/")
     @app.get("/api/orchestrator")
     async def root():

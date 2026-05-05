@@ -127,3 +127,73 @@ ecs-bedrock-agentcore-memory-solution/
 ├── deploy.py               # Deploy script with runtime wiring
 └── README.md               # This file
 ```
+
+---
+
+## Cross-Account MCP Scanning (v0.2.0)
+
+The longrun orchestrator supports scanning other AWS accounts via a one-click IAM role deployment.
+
+### How It Works
+
+```
+User → "scan account 123456789012 for public SGs"
+  → Intent router classifies as TIER 4 (cross_account_scan)
+  → Backend builds assume-role prompt with target account role ARN
+  → Agent assumes role via AWS CLI → runs scan in target account
+  → Result returned to user
+```
+
+### IAM Role Chain
+
+```
+AgentCore Runtime Role (ReadOnlyAccess)
+  → sts:AssumeRole → arn:aws:iam::<target>:role/OpenAB-ReadOnlyAccess
+```
+
+### One-Click Setup (Target Account)
+
+Users deploy a ReadOnly role in their account via CloudFormation Quick-Create:
+
+```
+https://<region>.console.aws.amazon.com/cloudformation/home#/stacks/quickcreate?
+  stackName=OpenAB-ReadOnlyAccess
+  &templateURL=<s3-template-url>
+  &param_TrustedAccountId=<operator-account>
+  &param_TrustedRoleName=<stack>-McpAssumeRole
+  &param_ExternalId=openab-scan
+```
+
+The template deploys:
+- `OpenAB-ReadOnlyAccess` IAM role
+- Trust: operator account's McpAssumeRole + ExternalId
+- Permissions: `ReadOnlyAccess` + `SecurityAudit` (no write)
+- Revoke: delete the CloudFormation stack
+
+### CFN Templates
+
+| Template | Purpose |
+|---|---|
+| `agentcore-longrun-orchestrator-0.2.0.yaml` | Full stack with MCP IAM role + DynamoDB |
+| `cross-account-readonly-role.yaml` | One-click target account role |
+
+---
+
+## Long-Running Task Management
+
+Tasks that take minutes or hours are handled with:
+
+- **Backend**: `GET /api/orchestrator/tasks/{task_id}/status` — polls AgentCore runtime for task completion
+- **Backend**: `GET /api/orchestrator/warmup` — pre-warms the runtime (90s cold start)
+- **Frontend**: Tasks persisted in `localStorage` — survive page refresh
+- **Frontend**: "Check Status" button on running tasks — polls via REST (no WebSocket dependency)
+- **Frontend**: Auto-prewarm on page load — fires warmup request in background
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/orchestrator/warmup` | GET/POST | Trigger runtime warm-up |
+| `/api/orchestrator/tasks/{task_id}/status` | GET | Check task completion status |
+| `/api/orchestrator/tasks` | GET | List recent tasks |
+| `/api/orchestrator/sessions` | GET | List session logs from S3 |
