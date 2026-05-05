@@ -560,7 +560,9 @@ Resources:
             Action: sts:AssumeRole
             Condition:
               ArnLike:
-                aws:PrincipalArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-*'
+                aws:PrincipalArn:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-*'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/sandbox-dev-*'
       Policies:
         - PolicyName: AssumeTargetAccountRoles
           PolicyDocument:
