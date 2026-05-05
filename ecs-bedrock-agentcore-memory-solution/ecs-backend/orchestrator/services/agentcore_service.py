@@ -122,7 +122,7 @@ async def invoke_agentcore_runtime(user_input: str, assume_role_arn: str = "") -
     # If immediate response (no async task), return directly
     # Retry if runtime is cold-starting
     if status == "initializing":
-        for _ in range(6):  # retry up to 60s for cold start
+        for _ in range(12):  # retry up to 120s for cold start
             await asyncio.sleep(10)
             result = await asyncio.get_event_loop().run_in_executor(
                 None, lambda: _invoke(payload, session_id))

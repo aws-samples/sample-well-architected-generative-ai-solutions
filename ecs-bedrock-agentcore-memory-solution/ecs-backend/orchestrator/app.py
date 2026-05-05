@@ -56,6 +56,13 @@ def create_orchestrator_app() -> FastAPI:
     async def health():
         return {"status": "healthy", "mode": "agentcore-longrun", "timestamp": datetime.utcnow().isoformat()}
 
+    @app.post("/api/orchestrator/warmup")
+    @app.get("/api/orchestrator/warmup")
+    async def warmup():
+        """Manually trigger a warm-up invoke on the AgentCore Runtime."""
+        result = await invoke_agentcore_runtime("ping")
+        return {"status": "ok", "runtime_response": result.get("response", str(result))[:200]}
+
     @app.get("/")
     @app.get("/api/orchestrator")
     async def root():
@@ -163,13 +170,21 @@ def create_orchestrator_app() -> FastAPI:
                             await ws.send_json({"type": "chat", "message": "Please provide a valid 12-digit AWS account ID."})
                         else:
                             role_arn = cross_account_service.get_assume_role_arn(account_id)
+                            # Prepend cross-account instructions to the prompt
+                            cross_account_prompt = (
+                                f"CROSS-ACCOUNT TASK: You need to access AWS account {account_id}. "
+                                f"First run: aws sts assume-role --role-arn {role_arn} --role-session-name openab-scan --external-id openab-scan "
+                                f"Then use the returned credentials (export AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN) "
+                                f"for all subsequent AWS CLI commands. "
+                                f"Original request: {user_input}"
+                            )
                             task_id = str(uuid.uuid4())[:8]
                             task = {"id": task_id, "tool": "cross_account_scan", "status": "running",
                                     "input": user_text, "started": datetime.utcnow().isoformat(), "account_id": account_id}
                             session["tasks"].append(task)
                             save_task(user, task)
                             await ws.send_json({"type": "task_started", "task_id": task_id})
-                            asyncio.create_task(_run_task(task_id, user_input, ws, session, user, assume_role_arn=role_arn))
+                            asyncio.create_task(_run_task(task_id, cross_account_prompt, ws, session, user))
 
                     # Cross-account confirm: user says role is deployed
                     elif "cross_account_confirm" in tools_to_run:
