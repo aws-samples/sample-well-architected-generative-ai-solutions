@@ -169,6 +169,9 @@ function handleMsg(m){
     case 'brief':
       resolveTask(m.task_id,'done',m.message);
       break;
+    case 'onboard_required':
+      addOnboardCard(m.account_id, m.cfn_link, m.message);
+      break;
   }
 }
 
@@ -176,6 +179,20 @@ function addChat(cls,text){
   const d=document.createElement('div');
   d.className='msg '+cls;
   d.innerHTML=cls.startsWith('ai')?renderMd(text):esc(text);
+  chatEl.appendChild(d);
+  chatEl.scrollTop=chatEl.scrollHeight;
+}
+
+function addOnboardCard(accountId, cfnLink, message){
+  const d=document.createElement('div');
+  d.className='msg ai';
+  d.innerHTML=`
+    <div style="border:1px solid #4a9eff;border-radius:8px;padding:12px;margin:4px 0;background:#1a2a3a">
+      <div style="font-weight:700;margin-bottom:8px">🔐 Cross-Account Access Setup</div>
+      <div style="margin-bottom:10px;font-size:13px">Account <code>${esc(accountId)}</code> needs a ReadOnly role deployed. Click below to deploy it via CloudFormation (opens in new tab).</div>
+      <a href="${esc(cfnLink)}" target="_blank" rel="noopener" style="display:inline-block;padding:8px 16px;background:#4a9eff;color:#fff;border-radius:4px;text-decoration:none;font-weight:600;font-size:13px">Deploy ReadOnly Role →</a>
+      <div style="margin-top:10px;font-size:12px;color:#888">Once deployed, type <strong>"done"</strong> to proceed with the scan.</div>
+    </div>`;
   chatEl.appendChild(d);
   chatEl.scrollTop=chatEl.scrollHeight;
 }
@@ -257,6 +274,7 @@ function renderMd(text){
     .replace(/`([^`]+)`/g,'<code>$1</code>')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" style="color:#4a9eff">$1</a>')
     .replace(/^### (.+)$/gm,'<div style="font-size:15px;font-weight:700;margin:10px 0 4px">$1</div>')
     .replace(/^## (.+)$/gm,'<div style="font-size:16px;font-weight:700;margin:12px 0 4px">$1</div>')
     .replace(/^# (.+)$/gm,'<div style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</div>')
