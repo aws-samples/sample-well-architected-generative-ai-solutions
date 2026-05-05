@@ -1,7 +1,7 @@
 # Kiro CLI + MCP as AgentCore Runtime (ARM64)
 FROM public.ecr.aws/docker/library/python:3.12-slim
 
-RUN apt-get update && apt-get install -y curl bash unzip coreutils && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y && apt-get install -y curl bash unzip coreutils && rm -rf /var/lib/apt/lists/*
 
 # Install AWS CLI
 RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscli.zip && \
