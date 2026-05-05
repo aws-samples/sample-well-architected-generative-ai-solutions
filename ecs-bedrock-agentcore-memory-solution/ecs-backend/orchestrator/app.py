@@ -172,11 +172,24 @@ def create_orchestrator_app() -> FastAPI:
                             await ws.send_json({"type": "task_started", "task_id": task_id})
                             asyncio.create_task(_run_task(task_id, user_input, ws, session, user, assume_role_arn=role_arn))
                         else:
-                            link = cross_account_service.generate_cfn_link(account_id)
-                            session["pending_account"] = account_id
-                            session["pending_scan_input"] = user_input
-                            await ws.send_json({"type": "onboard_required", "account_id": account_id, "cfn_link": link,
-                                                "message": f"To scan account {account_id}, please deploy the ReadOnly role first:\n\n[Deploy Role]({link})\n\nOnce deployed, let me know and I'll proceed with the scan."})
+                            # Try to verify access directly (user may have already deployed via one-click link)
+                            result = cross_account_service.complete_onboarding(account_id)
+                            if result["success"]:
+                                role_arn = result["role_arn"]
+                                task_id = str(uuid.uuid4())[:8]
+                                task = {"id": task_id, "tool": "cross_account_scan", "status": "running",
+                                        "input": user_text, "started": datetime.utcnow().isoformat(), "account_id": account_id}
+                                session["tasks"].append(task)
+                                save_task(user, task)
+                                await ws.send_json({"type": "ack", "message": f"Access verified for account {account_id}. Running scan..."})
+                                await ws.send_json({"type": "task_started", "task_id": task_id})
+                                asyncio.create_task(_run_task(task_id, user_input, ws, session, user, assume_role_arn=role_arn))
+                            else:
+                                link = cross_account_service.generate_cfn_link(account_id)
+                                session["pending_account"] = account_id
+                                session["pending_scan_input"] = user_input
+                                await ws.send_json({"type": "onboard_required", "account_id": account_id, "cfn_link": link,
+                                                    "message": f"To scan account {account_id}, please deploy the ReadOnly role first:\n\n[Deploy Role]({link})\n\nOnce deployed, let me know and I'll proceed with the scan."})
 
                     # Cross-account confirm: user says role is deployed
                     elif "cross_account_confirm" in tools_to_run:
