@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'OpenAB Cross-Account ReadOnly Role — allows the MCP server to scan this account'
+
+Parameters:
+  TrustedAccountId:
+    Type: String
+    Description: The AWS account ID that hosts the OpenAB MCP server
+  TrustedRoleName:
+    Type: String
+    Description: The IAM role name in the trusted account
+  ExternalId:
+    Type: String
+    Default: 'openab-scan'
+    Description: External ID for confused deputy protection
+
+Resources:
+  ReadOnlyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: OpenAB-ReadOnlyAccess
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${TrustedAccountId}:role/${TrustedRoleName}'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+        - arn:aws:iam::aws:policy/SecurityAudit
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt ReadOnlyRole.Arn
+  RoleName:
+    Value: !Ref ReadOnlyRole

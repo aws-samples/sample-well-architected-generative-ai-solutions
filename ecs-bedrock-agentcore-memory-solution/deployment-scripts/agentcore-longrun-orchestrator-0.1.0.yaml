@@ -223,6 +223,24 @@ Resources:
                   - dynamodb:DeleteItem
                 Resource:
                   - !GetAtt TaskTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:DeleteItem
+                Resource:
+                  - !GetAtt CrossAccountStateTable.Arn
+              - Effect: Allow
+                Action:
+                  - iam:GetRolePolicy
+                  - iam:PutRolePolicy
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-McpAssumeRole'
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - 'arn:aws:iam::*:role/OpenAB-ReadOnlyAccess'
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -257,6 +275,16 @@ Resources:
               Value: !Ref TaskLogBucket
             - Name: TASK_TABLE_NAME
               Value: !Ref TaskTable
+            - Name: STACK_NAME
+              Value: !Ref AWS::StackName
+            - Name: MCP_ROLE_NAME
+              Value: !Sub '${AWS::StackName}-McpAssumeRole'
+            - Name: ONBOARD_TABLE
+              Value: !Ref CrossAccountStateTable
+            - Name: CROSS_ACCOUNT_EXTERNAL_ID
+              Value: 'openab-scan'
+            - Name: AWS_ACCOUNT_ID
+              Value: !Ref AWS::AccountId
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -650,6 +678,53 @@ Resources:
       Value: PLACEHOLDER
       Description: Kiro API key — update value manually via console or CLI after stack creation
 
+  # Cross-Account MCP Server IAM Role
+  McpAssumeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-McpAssumeRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+          - !If
+            - ShouldCreateRuntime
+            - Effect: Allow
+              Principal:
+                AWS: !GetAtt AgentCoreRuntimeRole.Arn
+              Action: sts:AssumeRole
+            - !Ref AWS::NoValue
+      Policies:
+        - PolicyName: AssumeTargetRoles
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sts:AssumeRole
+                Resource: 'arn:aws:iam::*:role/OpenAB-ReadOnlyAccess'
+                Condition:
+                  StringEquals:
+                    sts:ExternalId: 'openab-scan'
+
+  # DynamoDB — Cross-Account Onboarding State
+  CrossAccountStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-cross-account-state'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: account_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: account_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
 Outputs:
   CloudFrontURL:
     Value: !Sub 'https://${Distribution.DomainName}'
@@ -682,3 +757,7 @@ Outputs:
     Value: !Ref KiroApiKey
   TaskTableName:
     Value: !Ref TaskTable
+  McpAssumeRoleArn:
+    Value: !GetAtt McpAssumeRole.Arn
+  CrossAccountStateTable:
+    Value: !Ref CrossAccountStateTable

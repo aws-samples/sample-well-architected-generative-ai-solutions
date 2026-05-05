@@ -284,9 +284,13 @@ def main(payload):
     # Start async task
     task_id = app.add_async_task("kiro_prompt")
     actor_id = payload.get("actor_id", payload.get("user", "default")) or "default"
+    assume_role_arn = payload.get("assume_role_arn", "")
 
     def run():
         try:
+            # Set cross-account role for MCP server if provided
+            if assume_role_arn:
+                os.environ["AWS_ASSUME_ROLE_ARN"] = assume_role_arn
             context = memory_search(user_input, actor_id)
             prompt = context + user_input if context else user_input
             result = acp.prompt(prompt)
@@ -295,6 +299,8 @@ def main(payload):
         except Exception as e:
             results[task_id] = f"Error: {e}"
         finally:
+            # Always clear cross-account env to prevent leakage
+            os.environ.pop("AWS_ASSUME_ROLE_ARN", None)
             app.complete_async_task(task_id)
 
     threading.Thread(target=run, daemon=True).start()

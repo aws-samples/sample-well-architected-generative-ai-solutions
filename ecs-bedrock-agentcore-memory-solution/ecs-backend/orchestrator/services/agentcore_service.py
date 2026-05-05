@@ -100,16 +100,20 @@ def _invoke(payload: dict, session_id: str = None) -> dict:
     return {**data, "_session_id": session}
 
 
-async def invoke_agentcore_runtime(user_input: str) -> dict:
+async def invoke_agentcore_runtime(user_input: str, assume_role_arn: str = "") -> dict:
     """Invoke AgentCore runtime with async polling for long-running tasks."""
     if not RUNTIME_ARN:
         return {"response": "AgentCore runtime ARN not configured", "error": True}
 
     session_id = str(uuid.uuid4())
 
+    payload = {"input": user_input}
+    if assume_role_arn:
+        payload["assume_role_arn"] = assume_role_arn
+
     # First call: submit the task
     result = await asyncio.get_event_loop().run_in_executor(
-        None, lambda: _invoke({"input": user_input}, session_id))
+        None, lambda: _invoke(payload, session_id))
 
     status = result.get("status", "")
     task_id = result.get("task_id", "")
