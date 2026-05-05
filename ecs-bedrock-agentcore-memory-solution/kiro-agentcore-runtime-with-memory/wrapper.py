@@ -290,7 +290,18 @@ def main(payload):
         try:
             # Set cross-account role for MCP server if provided
             if assume_role_arn:
+                # Role chain: assume McpAssumeRole first, then MCP server assumes target role
+                mcp_role = os.environ.get("MCP_ROLE_ARN", "")
+                external_id = os.environ.get("CROSS_ACCOUNT_EXTERNAL_ID", "openab-scan")
+                if mcp_role:
+                    import boto3 as _b3
+                    sts = _b3.client("sts")
+                    creds = sts.assume_role(RoleArn=mcp_role, RoleSessionName="mcp-chain")["Credentials"]
+                    os.environ["AWS_ACCESS_KEY_ID"] = creds["AccessKeyId"]
+                    os.environ["AWS_SECRET_ACCESS_KEY"] = creds["SecretAccessKey"]
+                    os.environ["AWS_SESSION_TOKEN"] = creds["SessionToken"]
                 os.environ["AWS_ASSUME_ROLE_ARN"] = assume_role_arn
+                os.environ["AWS_ASSUME_ROLE_EXTERNAL_ID"] = external_id
             context = memory_search(user_input, actor_id)
             prompt = context + user_input if context else user_input
             result = acp.prompt(prompt)
@@ -300,7 +311,8 @@ def main(payload):
             results[task_id] = f"Error: {e}"
         finally:
             # Always clear cross-account env to prevent leakage
-            os.environ.pop("AWS_ASSUME_ROLE_ARN", None)
+            for k in ["AWS_ASSUME_ROLE_ARN", "AWS_ASSUME_ROLE_EXTERNAL_ID", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"]:
+                os.environ.pop(k, None)
             app.complete_async_task(task_id)
 
     threading.Thread(target=run, daemon=True).start()
