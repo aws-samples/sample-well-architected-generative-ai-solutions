@@ -120,6 +120,20 @@ async def invoke_agentcore_runtime(user_input: str, assume_role_arn: str = "") -
     sid = result.get("_session_id", session_id)
 
     # If immediate response (no async task), return directly
+    # Retry if runtime is cold-starting
+    if status == "initializing":
+        for _ in range(6):  # retry up to 60s for cold start
+            await asyncio.sleep(10)
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: _invoke(payload, session_id))
+            status = result.get("status", "")
+            task_id = result.get("task_id", "")
+            sid = result.get("_session_id", session_id)
+            if status != "initializing":
+                break
+        if status == "initializing":
+            return {"response": "Agent runtime is still starting up. Please try again in a minute."}
+
     if status != "accepted":
         return {"response": _mask_output(result.get("response", str(result)))}
 
