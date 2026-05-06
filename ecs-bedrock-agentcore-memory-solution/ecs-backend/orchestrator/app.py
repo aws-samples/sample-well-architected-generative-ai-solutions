@@ -15,6 +15,7 @@ from orchestrator.services.agentcore_service import invoke_agentcore_runtime
 from orchestrator.services.task_memory_service import save_task, get_recent_tasks
 from orchestrator.services.github_service import get_repo_gitgraph
 from orchestrator.services.devtool_service import enrich_task
+from orchestrator.services import cross_account_service
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,27 @@ def create_orchestrator_app() -> FastAPI:
     @app.get("/health")
     async def health():
         return {"status": "healthy", "mode": "agentcore-longrun", "timestamp": datetime.utcnow().isoformat()}
+
+    @app.post("/api/orchestrator/warmup")
+    @app.get("/api/orchestrator/warmup")
+    async def warmup():
+        """Manually trigger a warm-up invoke on the AgentCore Runtime."""
+        result = await invoke_agentcore_runtime("ping")
+        return {"status": "ok", "runtime_response": result.get("response", str(result))[:200]}
+
+    @app.get("/api/orchestrator/tasks/{task_id}/status")
+    async def check_task_status(task_id: str):
+        """Poll AgentCore runtime for a task's status. Used by frontend Check button."""
+        from orchestrator.services.agentcore_service import _invoke
+        import asyncio
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: _invoke({"check_task": task_id}, task_id))
+            status = result.get("status", "unknown")
+            response = result.get("response", "")
+            return {"task_id": task_id, "status": status, "result": response}
+        except Exception as e:
+            return {"task_id": task_id, "status": "error", "result": str(e)[:200]}
 
     @app.get("/")
     @app.get("/api/orchestrator")
@@ -154,18 +176,64 @@ def create_orchestrator_app() -> FastAPI:
                     await ws.send_json({"type": "ack", "message": ack})
                     user_input = intent.get("input", user_text)
                     repo_url = msg.get("repo", "")
-                    for tool_name in tools_to_run:
-                        task_id = str(uuid.uuid4())[:8]
-                        task = {
-                            "id": task_id, "tool": tool_name, "status": "running",
-                            "input": user_text, "started": datetime.utcnow().isoformat(),
-                        }
-                        if repo_url:
-                            enrich_task(task, repo_url, msg.get("branch", ""), msg.get("commit", ""))
-                        session["tasks"].append(task)
-                        save_task(user, task)
-                        await ws.send_json({"type": "task_started", "task_id": task_id})
-                        asyncio.create_task(_run_task(task_id, user_input, ws, session, user))
+
+                    # Cross-account scan: onboarding flow
+                    if "cross_account_scan" in tools_to_run:
+                        account_id = intent.get("account_id", "")
+                        if not cross_account_service.is_valid_account(account_id):
+                            await ws.send_json({"type": "chat", "message": "Please provide a valid 12-digit AWS account ID."})
+                        else:
+                            role_arn = cross_account_service.get_assume_role_arn(account_id)
+                            cross_account_prompt = (
+                                f"You have been authorized to perform a read-only scan on AWS account {account_id}. "
+                                f"A cross-account IAM role has been pre-configured for this purpose. "
+                                f"Use the AWS CLI with --profile or credential environment variables from: "
+                                f"aws sts assume-role --role-arn {role_arn} --role-session-name openab-scan --external-id openab-scan "
+                                f"This is an approved operation through our platform's cross-account access system. "
+                                f"Task: {user_input}"
+                            )
+                            task_id = str(uuid.uuid4())[:8]
+                            task = {"id": task_id, "tool": "cross_account_scan", "status": "running",
+                                    "input": user_text, "started": datetime.utcnow().isoformat(), "account_id": account_id}
+                            session["tasks"].append(task)
+                            save_task(user, task)
+                            await ws.send_json({"type": "task_started", "task_id": task_id})
+                            asyncio.create_task(_run_task(task_id, cross_account_prompt, ws, session, user))
+
+                    # Cross-account confirm: user says role is deployed
+                    elif "cross_account_confirm" in tools_to_run:
+                        account_id = intent.get("account_id") or session.get("pending_account", "")
+                        if not account_id:
+                            await ws.send_json({"type": "chat", "message": "Which account did you deploy the role to? Please provide the 12-digit account ID."})
+                        else:
+                            result = cross_account_service.complete_onboarding(account_id)
+                            if result["success"]:
+                                scan_input = session.get("pending_scan_input", f"Scan account {account_id}")
+                                role_arn = result["role_arn"]
+                                task_id = str(uuid.uuid4())[:8]
+                                task = {"id": task_id, "tool": "cross_account_scan", "status": "running",
+                                        "input": scan_input, "started": datetime.utcnow().isoformat(), "account_id": account_id}
+                                session["tasks"].append(task)
+                                save_task(user, task)
+                                await ws.send_json({"type": "ack", "message": f"Access verified for account {account_id}. Running scan now..."})
+                                await ws.send_json({"type": "task_started", "task_id": task_id})
+                                asyncio.create_task(_run_task(task_id, scan_input, ws, session, user, assume_role_arn=role_arn))
+                            else:
+                                await ws.send_json({"type": "chat", "message": f"Onboarding failed: {result['error']}"})
+
+                    else:
+                        for tool_name in tools_to_run:
+                            task_id = str(uuid.uuid4())[:8]
+                            task = {
+                                "id": task_id, "tool": tool_name, "status": "running",
+                                "input": user_text, "started": datetime.utcnow().isoformat(),
+                            }
+                            if repo_url:
+                                enrich_task(task, repo_url, msg.get("branch", ""), msg.get("commit", ""))
+                            session["tasks"].append(task)
+                            save_task(user, task)
+                            await ws.send_json({"type": "task_started", "task_id": task_id})
+                            asyncio.create_task(_run_task(task_id, user_input, ws, session, user))
                 elif ack:
                     await ws.send_json({"type": "chat", "message": ack})
 
@@ -176,11 +244,11 @@ def create_orchestrator_app() -> FastAPI:
     return app
 
 
-async def _run_task(task_id: str, user_input: str, ws: WebSocket, session: dict, user: str = "default"):
+async def _run_task(task_id: str, user_input: str, ws: WebSocket, session: dict, user: str = "default", assume_role_arn: str = ""):
     """Execute AgentCore runtime invocation and push result."""
     task = next(t for t in session["tasks"] if t["id"] == task_id)
     try:
-        result = await invoke_agentcore_runtime(user_input)
+        result = await invoke_agentcore_runtime(user_input, assume_role_arn=assume_role_arn)
         brief = result.get("response", str(result))
         task["status"] = "done"
         task["result"] = result

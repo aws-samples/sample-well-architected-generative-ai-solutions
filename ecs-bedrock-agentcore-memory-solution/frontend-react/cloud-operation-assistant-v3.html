@@ -85,7 +85,7 @@ header h1{font-size:16px;color:#fff;font-weight:600}
           <div class="ex" onclick="tryExample(this)"><span>🏗️ Infrastructure Review</span>Review my VPC setup including subnets, route tables, and NAT gateways, and flag any misconfigurations</div>
           <div class="ex" onclick="tryExample(this)"><span>📦 Storage &amp; Compliance</span>List all S3 buckets that have public access enabled and check if server-side encryption is configured</div>
         </div>
-        <div class="note">📌 <strong>Multi-Account Support</strong> — This assistant can operate across multiple AWS accounts with a given IAM Role and required configuration. Contact your administrator to set up cross-account access.</div>
+        <div class="note">📌 <strong>Multi-Account Support</strong> — This assistant can scan other AWS accounts. <a href="https://us-west-2.console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/quickcreate?stackName=OpenAB-ReadOnlyAccess&templateURL=https%3A%2F%2Fsandbox-longrun-0426-source-256358067059-us-west-2.s3.us-west-2.amazonaws.com%2Ftemplates%2Fcross-account-readonly-role.yaml&param_TrustedAccountId=256358067059&param_TrustedRoleName=sandbox-longrun-0426-McpAssumeRole&param_ExternalId=openab-scan" target="_blank" rel="noopener" style="color:#4a9eff;font-weight:600">Click here to deploy the ReadOnly role</a> in your target account, then prompt like: <em>"Scan account 123456789012 to see if there is any Security Findings"</em></div>
         </div>
       </div>
     </div>
@@ -108,6 +108,17 @@ header h1{font-size:16px;color:#fff;font-weight:600}
 const chatEl=document.getElementById('chat-messages'),inputEl=document.getElementById('input'),taskListEl=document.getElementById('task-list'),taskCountEl=document.getElementById('task-count'),panel=document.getElementById('task-panel'),statusDot=document.getElementById('status-dot'),statusText=document.getElementById('status-text');
 const tasks={};let ws,lastUserMsg='',pendingName='';
 
+// Load persisted tasks from localStorage
+(function loadTasks(){
+  try{
+    const saved=JSON.parse(localStorage.getItem('openab_tasks')||'{}');
+    Object.assign(tasks,saved);
+    Object.keys(saved).forEach(id=>{ renderTaskItem(id); refreshTaskUI(id); });
+  }catch(e){}
+})();
+
+function saveTasks(){try{localStorage.setItem('openab_tasks',JSON.stringify(tasks))}catch(e){}}
+
 function connect(){
   const proto=location.protocol==='https:'?'wss:':'ws:';
   const url=window.APP_CONFIG?.api?.wsEndpoint||`${proto}//${location.host}/ws`;
@@ -116,6 +127,9 @@ function connect(){
   ws.onclose=()=>{setStatus(false);setTimeout(connect,3000)};
   ws.onmessage=e=>handleMsg(JSON.parse(e.data));
 }
+
+// Prewarm runtime on page load
+fetch('/api/orchestrator/warmup').catch(()=>{});
 
 function setStatus(on){
   statusDot.style.background=on?'#22c55e':'#ef4444';
@@ -153,6 +167,7 @@ function handleMsg(m){
       const name=pendingName||'Task';
       tasks[m.task_id]={status:'running',name:name,text:'',data:null};
       renderTaskItem(m.task_id);
+      saveTasks();
       break;
     case 'chat':
       addChat('ai',m.message);
@@ -169,6 +184,9 @@ function handleMsg(m){
     case 'brief':
       resolveTask(m.task_id,'done',m.message);
       break;
+    case 'onboard_required':
+      addOnboardCard(m.account_id, m.cfn_link, m.message);
+      break;
   }
 }
 
@@ -180,12 +198,25 @@ function addChat(cls,text){
   chatEl.scrollTop=chatEl.scrollHeight;
 }
 
+function addOnboardCard(accountId, cfnLink, message){
+  const d=document.createElement('div');
+  d.className='msg ai';
+  d.innerHTML=`
+    <div style="border:1px solid #4a9eff;border-radius:8px;padding:12px;margin:4px 0;background:#1a2a3a">
+      <div style="font-weight:700;margin-bottom:8px">🔐 Cross-Account Access Setup</div>
+      <div style="margin-bottom:10px;font-size:13px">Account <code>${esc(accountId)}</code> needs a ReadOnly role deployed. Click below to deploy it via CloudFormation (opens in new tab).</div>
+      <a href="${esc(cfnLink)}" target="_blank" rel="noopener" style="display:inline-block;padding:8px 16px;background:#4a9eff;color:#fff;border-radius:4px;text-decoration:none;font-weight:600;font-size:13px">Deploy ReadOnly Role →</a>
+      <div style="margin-top:10px;font-size:12px;color:#888">Once deployed, type <strong>"done"</strong> to proceed with the scan.</div>
+    </div>`;
+  chatEl.appendChild(d);
+  chatEl.scrollTop=chatEl.scrollHeight;
+}
+
 function tryExample(el){inputEl.value=el.childNodes[el.childNodes.length-1].textContent.trim();send()}
 
 // Update a task that already exists by its real ID
 function updateTask(id,status,text,data){
   if(!tasks[id]){
-    // fallback: task_started was missed, create it now
     tasks[id]={status:'running',name:'Task',text:'',data:null};
     renderTaskItem(id);
   }
@@ -194,6 +225,7 @@ function updateTask(id,status,text,data){
   if(text!=null)t.text=text;
   if(data!=null)t.data=data;
   refreshTaskUI(id);
+  saveTasks();
 }
 
 function renderTaskItem(id){
@@ -225,6 +257,7 @@ function refreshTaskUI(id){
   let html='';
   if(t.text)html+=renderMd(t.text);
   if(t.data)html+='<pre>'+esc(JSON.stringify(t.data,null,2))+'</pre>';
+  if(t.status==='running')html+='<button onclick="checkTask(\''+id+'\')" style="margin-top:6px;padding:4px 12px;background:#4a9eff;color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:12px">Check Status</button>';
   body.innerHTML=html||'<em>No details yet.</em>';
   updateCount();
 }
@@ -257,6 +290,7 @@ function renderMd(text){
     .replace(/`([^`]+)`/g,'<code>$1</code>')
     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
     .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" style="color:#4a9eff">$1</a>')
     .replace(/^### (.+)$/gm,'<div style="font-size:15px;font-weight:700;margin:10px 0 4px">$1</div>')
     .replace(/^## (.+)$/gm,'<div style="font-size:16px;font-weight:700;margin:12px 0 4px">$1</div>')
     .replace(/^# (.+)$/gm,'<div style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</div>')
@@ -264,6 +298,21 @@ function renderMd(text){
     .replace(/^\d+\. (.+)$/gm,'<li style="margin-left:16px;list-style-type:decimal">$1</li>')
     .replace(/^---$/gm,'<hr style="border:none;border-top:1px solid #555;margin:8px 0">')
     .replace(/\n\n/g,'<br/><br/>').replace(/\n/g,'<br/>');
+}
+
+async function checkTask(id){
+  const btn=event.target;btn.textContent='Checking...';btn.disabled=true;
+  try{
+    const r=await fetch('/api/orchestrator/tasks/'+id+'/status');
+    const d=await r.json();
+    if(d.status==='complete'){
+      updateTask(id,'done',d.result);
+    }else if(d.status==='error'){
+      updateTask(id,'error',d.result||'Task failed');
+    }else{
+      btn.textContent='Still running...';setTimeout(()=>{btn.textContent='Check Status';btn.disabled=false},2000);
+    }
+  }catch(e){btn.textContent='Check Status';btn.disabled=false;}
 }
 
 connect();

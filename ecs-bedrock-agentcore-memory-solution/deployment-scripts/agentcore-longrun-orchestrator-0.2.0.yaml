@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AgentCore Long-Running Orchestrator - ECS + Bedrock AgentCore Runtime (v0.1.1)'
+Description: 'AgentCore Long-Running Orchestrator with MCP Cross-Account Access (v0.2.0)'
 
 Parameters:
   Environment:
@@ -13,25 +13,24 @@ Parameters:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
-    Description: Enable output masking of resource IDs and names (for demo/sandbox)
   DemoReadOnly:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
-    Description: Restrict agent to read-only operations (for demo/sandbox)
   BackendImage:
     Type: String
     Default: 'public.ecr.aws/nginx/nginx:alpine'
-    Description: Backend container image URI (use placeholder for initial deploy)
   AgentCoreRuntimeArn:
     Type: String
     Default: ''
-    Description: Existing AgentCore Runtime ARN (leave empty to create new one)
   CreateAgentCoreRuntime:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
-    Description: Set to true to create AgentCore Runtime (requires agent image in ECR)
+  CrossAccountExternalId:
+    Type: String
+    Default: 'openab-scan'
+    Description: External ID for cross-account role assumption (confused deputy protection)
 
 Conditions:
   ShouldCreateRuntime: !Equals [!Ref CreateAgentCoreRuntime, 'true']
@@ -39,7 +38,7 @@ Conditions:
   UsingPlaceholderImage: !Equals [!Ref BackendImage, 'public.ecr.aws/nginx/nginx:alpine']
 
 Resources:
-  # Cognito
+  # ─── Cognito ───
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
@@ -47,12 +46,7 @@ Resources:
       AutoVerifiedAttributes: [email]
       UsernameAttributes: [email]
       Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireUppercase: true
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: true
+        PasswordPolicy: {MinimumLength: 8, RequireUppercase: true, RequireLowercase: true, RequireNumbers: true, RequireSymbols: true}
 
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -62,75 +56,51 @@ Resources:
       GenerateSecret: false
       ExplicitAuthFlows: [ALLOW_USER_PASSWORD_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
 
-  # VPC
+  # ─── VPC ───
   VPC:
     Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsHostnames: true
-      EnableDnsSupport: true
+    Properties: {CidrBlock: 10.0.0.0/16, EnableDnsHostnames: true, EnableDnsSupport: true}
 
   PublicSubnet1:
     Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [0, !GetAZs '']
-      MapPublicIpOnLaunch: true
+    Properties: {VpcId: !Ref VPC, CidrBlock: 10.0.1.0/24, AvailabilityZone: !Select [0, !GetAZs ''], MapPublicIpOnLaunch: true}
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.2.0/24
-      AvailabilityZone: !Select [1, !GetAZs '']
-      MapPublicIpOnLaunch: true
+    Properties: {VpcId: !Ref VPC, CidrBlock: 10.0.2.0/24, AvailabilityZone: !Select [1, !GetAZs ''], MapPublicIpOnLaunch: true}
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
 
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref VPC
-      InternetGatewayId: !Ref InternetGateway
+    Properties: {VpcId: !Ref VPC, InternetGatewayId: !Ref InternetGateway}
 
   RouteTable:
     Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
+    Properties: {VpcId: !Ref VPC}
 
   PublicRoute:
     Type: AWS::EC2::Route
     DependsOn: VPCGatewayAttachment
-    Properties:
-      RouteTableId: !Ref RouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
+    Properties: {RouteTableId: !Ref RouteTable, DestinationCidrBlock: 0.0.0.0/0, GatewayId: !Ref InternetGateway}
 
   Subnet1RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet1
-      RouteTableId: !Ref RouteTable
+    Properties: {SubnetId: !Ref PublicSubnet1, RouteTableId: !Ref RouteTable}
 
   Subnet2RouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet2
-      RouteTableId: !Ref RouteTable
+    Properties: {SubnetId: !Ref PublicSubnet2, RouteTableId: !Ref RouteTable}
 
-  # Security Groups
+  # ─── Security Groups ───
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: ALB Security Group
       VpcId: !Ref VPC
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
+        - {IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0}
 
   ECSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -138,16 +108,10 @@ Resources:
       GroupDescription: ECS Tasks Security Group
       VpcId: !Ref VPC
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 8000
-          ToPort: 8000
-          SourceSecurityGroupId: !Ref ALBSecurityGroup
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          SourceSecurityGroupId: !Ref ALBSecurityGroup
+        - {IpProtocol: tcp, FromPort: 8000, ToPort: 8000, SourceSecurityGroupId: !Ref ALBSecurityGroup}
+        - {IpProtocol: tcp, FromPort: 80, ToPort: 80, SourceSecurityGroupId: !Ref ALBSecurityGroup}
 
-  # ECS
+  # ─── ECS Cluster & IAM ───
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -160,8 +124,7 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
+            Principal: {Service: ecs-tasks.amazonaws.com}
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
@@ -170,17 +133,10 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              - {Effect: Allow, Action: ['ecr:GetAuthorizationToken'], Resource: '*'}
               - Effect: Allow
-                Action:
-                  - ecr:GetAuthorizationToken
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - ecr:BatchCheckLayerAvailability
-                  - ecr:GetDownloadUrlForLayer
-                  - ecr:BatchGetImage
-                Resource:
-                  - !GetAtt BackendECRRepo.Arn
+                Action: [ecr:BatchCheckLayerAvailability, ecr:GetDownloadUrlForLayer, ecr:BatchGetImage]
+                Resource: !GetAtt BackendECRRepo.Arn
 
   TaskRole:
     Type: AWS::IAM::Role
@@ -189,58 +145,36 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
+            Principal: {Service: ecs-tasks.amazonaws.com}
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: AgentCoreAccess
+        - PolicyName: OrchestratorPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - bedrock-agentcore:InvokeAgentRuntime
+                Action: [bedrock-agentcore:InvokeAgentRuntime]
                 Resource: !Sub 'arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/*'
               - Effect: Allow
-                Action:
-                  - bedrock:InvokeModel
-                  - bedrock:InvokeModelWithResponseStream
+                Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
                 Resource: '*'
               - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                  - s3:ListBucket
+                Action: [s3:PutObject, s3:GetObject, s3:ListBucket]
                 Resource:
                   - !GetAtt TaskLogBucket.Arn
                   - !Sub '${TaskLogBucket.Arn}/*'
               - Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:GetItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:Query
-                  - dynamodb:DeleteItem
-                Resource:
-                  - !GetAtt TaskTable.Arn
+                Action: [dynamodb:PutItem, dynamodb:GetItem, dynamodb:UpdateItem, dynamodb:Query, dynamodb:DeleteItem]
+                Resource: !GetAtt TaskTable.Arn
               - Effect: Allow
-                Action:
-                  - dynamodb:PutItem
-                  - dynamodb:GetItem
-                  - dynamodb:DeleteItem
-                Resource:
-                  - !GetAtt CrossAccountStateTable.Arn
+                Action: [dynamodb:PutItem, dynamodb:GetItem, dynamodb:DeleteItem]
+                Resource: !GetAtt CrossAccountStateTable.Arn
               - Effect: Allow
-                Action:
-                  - iam:GetRolePolicy
-                  - iam:PutRolePolicy
-                Resource:
-                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-McpAssumeRole'
+                Action: [iam:GetRolePolicy, iam:PutRolePolicy]
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-McpAssumeRole'
               - Effect: Allow
-                Action:
-                  - sts:AssumeRole
-                Resource:
-                  - 'arn:aws:iam::*:role/OpenAB-ReadOnlyAccess'
+                Action: sts:AssumeRole
+                Resource: !GetAtt McpAssumeRole.Arn
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -259,52 +193,41 @@ Resources:
             - ContainerPort: !If [UsingPlaceholderImage, 80, 8000]
           Environment:
             - Name: AGENTCORE_RUNTIME_ARN
-              Value: !If
-                - ShouldCreateRuntime
-                - !GetAtt AgentCoreRuntime.AgentRuntimeArn
-                - !Ref AgentCoreRuntimeArn
-            - Name: BEDROCK_REGION
-              Value: !Ref BedrockRegion
-            - Name: AGENTCORE_REGION
-              Value: !Ref BedrockRegion
-            - Name: DEMO_MASK_OUTPUT
-              Value: !Ref DemoMaskOutput
-            - Name: DEMO_READ_ONLY
-              Value: !Ref DemoReadOnly
-            - Name: TASK_LOG_BUCKET
-              Value: !Ref TaskLogBucket
-            - Name: TASK_TABLE_NAME
-              Value: !Ref TaskTable
-            - Name: STACK_NAME
-              Value: !Ref AWS::StackName
-            - Name: MCP_ROLE_NAME
-              Value: !Sub '${AWS::StackName}-McpAssumeRole'
-            - Name: ONBOARD_TABLE
-              Value: !Ref CrossAccountStateTable
-            - Name: CROSS_ACCOUNT_EXTERNAL_ID
-              Value: 'openab-scan'
-            - Name: AWS_ACCOUNT_ID
-              Value: !Ref AWS::AccountId
+              Value: !If [ShouldCreateRuntime, !GetAtt AgentCoreRuntime.AgentRuntimeArn, !Ref AgentCoreRuntimeArn]
+            - {Name: BEDROCK_REGION, Value: !Ref BedrockRegion}
+            - {Name: AGENTCORE_REGION, Value: !Ref BedrockRegion}
+            - {Name: DEMO_MASK_OUTPUT, Value: !Ref DemoMaskOutput}
+            - {Name: DEMO_READ_ONLY, Value: !Ref DemoReadOnly}
+            - {Name: TASK_LOG_BUCKET, Value: !Ref TaskLogBucket}
+            - {Name: TASK_TABLE_NAME, Value: !Ref TaskTable}
+            - {Name: STACK_NAME, Value: !Ref 'AWS::StackName'}
+            - {Name: AWS_ACCOUNT_ID, Value: !Ref 'AWS::AccountId'}
+            - Name: MCP_ROLE_ARN
+              Value: !GetAtt McpAssumeRole.Arn
+            - {Name: ONBOARD_TABLE, Value: !Ref CrossAccountStateTable}
+            - {Name: CROSS_ACCOUNT_EXTERNAL_ID, Value: !Ref CrossAccountExternalId}
+            - Name: CFN_TEMPLATE_URL
+              Value: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/templates/cross-account-readonly-role.yaml'
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group: !Ref LogGroup
-              awslogs-region: !Ref AWS::Region
+              awslogs-region: !Ref 'AWS::Region'
               awslogs-stream-prefix: ecs
 
   LogGroup:
     Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/ecs/${AWS::StackName}'
-      RetentionInDays: 14
+    Properties: {LogGroupName: !Sub '/ecs/${AWS::StackName}', RetentionInDays: 14}
 
-  # ALB
+  # ─── ALB ───
   ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name: !Sub '${AWS::StackName}-alb'
       Subnets: [!Ref PublicSubnet1, !Ref PublicSubnet2]
       SecurityGroups: [!Ref ALBSecurityGroup]
+      LoadBalancerAttributes:
+        - {Key: idle_timeout.timeout_seconds, Value: '300'}
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -316,10 +239,8 @@ Resources:
       HealthCheckPath: !If [UsingPlaceholderImage, '/', '/health']
       HealthCheckPort: !If [UsingPlaceholderImage, '80', '8000']
       TargetGroupAttributes:
-        - Key: stickiness.enabled
-          Value: 'true'
-        - Key: stickiness.type
-          Value: lb_cookie
+        - {Key: stickiness.enabled, Value: 'true'}
+        - {Key: stickiness.type, Value: lb_cookie}
 
   Listener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -328,8 +249,7 @@ Resources:
       Port: 80
       Protocol: HTTP
       DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref TargetGroup
+        - {Type: forward, TargetGroupArn: !Ref TargetGroup}
 
   ECSService:
     Type: AWS::ECS::Service
@@ -340,9 +260,7 @@ Resources:
       DesiredCount: 1
       LaunchType: FARGATE
       DeploymentConfiguration:
-        DeploymentCircuitBreaker:
-          Enable: true
-          Rollback: true
+        DeploymentCircuitBreaker: {Enable: true, Rollback: true}
         MaximumPercent: 200
         MinimumHealthyPercent: 100
       NetworkConfiguration:
@@ -355,37 +273,49 @@ Resources:
           ContainerPort: !If [UsingPlaceholderImage, 80, 8000]
           TargetGroupArn: !Ref TargetGroup
 
-  # ECR Repos
+  # ─── ECR Repos ───
   BackendECRRepo:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: !Sub '${AWS::StackName}-backend'
-      ImageScanningConfiguration:
-        ScanOnPush: true
+      ImageScanningConfiguration: {ScanOnPush: true}
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
 
-  # DynamoDB — Task Memory
+  AgentECRRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub '${AWS::StackName}-agent'
+      ImageScanningConfiguration: {ScanOnPush: true}
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
+
+  # ─── DynamoDB ───
   TaskTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub '${AWS::StackName}-tasks'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: user
-          AttributeType: S
-        - AttributeName: task_id
-          AttributeType: S
+        - {AttributeName: user, AttributeType: S}
+        - {AttributeName: task_id, AttributeType: S}
       KeySchema:
-        - AttributeName: user
-          KeyType: HASH
-        - AttributeName: task_id
-          KeyType: RANGE
-      TimeToLiveSpecification:
-        AttributeName: ttl
-        Enabled: true
+        - {AttributeName: user, KeyType: HASH}
+        - {AttributeName: task_id, KeyType: RANGE}
+      TimeToLiveSpecification: {AttributeName: ttl, Enabled: true}
 
-  # S3 Buckets
+  CrossAccountStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-cross-account-state'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - {AttributeName: account_id, AttributeType: S}
+      KeySchema:
+        - {AttributeName: account_id, KeyType: HASH}
+      TimeToLiveSpecification: {AttributeName: ttl, Enabled: true}
+
+  # ─── S3 ───
   SourceBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -396,12 +326,12 @@ Resources:
     Properties:
       BucketName: !Sub '${AWS::StackName}-logs-${AWS::AccountId}'
 
-  # CloudFront
   StaticBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub '${AWS::StackName}-static-${AWS::AccountId}'
 
+  # ─── CloudFront ───
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -411,27 +341,21 @@ Resources:
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt StaticBucket.RegionalDomainName
-            S3OriginConfig:
-              OriginAccessIdentity: ''
+            S3OriginConfig: {OriginAccessIdentity: ''}
           - Id: ALBOrigin
             DomainName: !GetAtt ALB.DNSName
-            CustomOriginConfig:
-              HTTPPort: 80
-              OriginProtocolPolicy: http-only
+            CustomOriginConfig: {HTTPPort: 80, OriginProtocolPolicy: http-only}
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods: [GET, HEAD]
-          ForwardedValues:
-            QueryString: false
+          ForwardedValues: {QueryString: false}
         CacheBehaviors:
           - PathPattern: '/api/*'
             TargetOriginId: ALBOrigin
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
-            ForwardedValues:
-              QueryString: true
-              Headers: ['*']
+            ForwardedValues: {QueryString: true, Headers: ['*']}
             DefaultTTL: 0
             MaxTTL: 0
             MinTTL: 0
@@ -439,19 +363,16 @@ Resources:
             TargetOriginId: ALBOrigin
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD]
-            ForwardedValues:
-              QueryString: false
+            ForwardedValues: {QueryString: false}
             DefaultTTL: 0
           - PathPattern: '/ws'
             TargetOriginId: ALBOrigin
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
-            ForwardedValues:
-              QueryString: true
-              Headers: ['*']
+            ForwardedValues: {QueryString: true, Headers: ['*']}
             DefaultTTL: 0
 
-  # Backend Build Pipeline
+  # ─── Build Pipelines ───
   BackendBuildRole:
     Type: AWS::IAM::Role
     Properties:
@@ -459,100 +380,110 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: codebuild.amazonaws.com
+            Principal: {Service: codebuild.amazonaws.com}
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: BackendBuildPolicy
+        - PolicyName: BuildPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              - {Effect: Allow, Action: ['ecr:GetAuthorizationToken'], Resource: '*'}
               - Effect: Allow
-                Action:
-                  - ecr:GetAuthorizationToken
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - ecr:BatchCheckLayerAvailability
-                  - ecr:GetDownloadUrlForLayer
-                  - ecr:BatchGetImage
-                  - ecr:PutImage
-                  - ecr:InitiateLayerUpload
-                  - ecr:UploadLayerPart
-                  - ecr:CompleteLayerUpload
+                Action: [ecr:BatchCheckLayerAvailability, ecr:GetDownloadUrlForLayer, ecr:BatchGetImage, ecr:PutImage, ecr:InitiateLayerUpload, ecr:UploadLayerPart, ecr:CompleteLayerUpload]
                 Resource:
                   - !GetAtt BackendECRRepo.Arn
                   - !GetAtt AgentECRRepo.Arn
               - Effect: Allow
-                Action:
-                  - s3:GetObject
+                Action: s3:GetObject
                 Resource: !Sub 'arn:aws:s3:::${SourceBucket}/*'
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: '*'
+              - {Effect: Allow, Action: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'], Resource: '*'}
 
   BackendBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: !Sub '${AWS::StackName}-backend-build'
       ServiceRole: !GetAtt BackendBuildRole.Arn
-      Artifacts:
-        Type: NO_ARTIFACTS
+      Artifacts: {Type: NO_ARTIFACTS}
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
         PrivilegedMode: true
         EnvironmentVariables:
-          - Name: REPOSITORY_URI
-            Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BackendECRRepo}'
-          - Name: AWS_ACCOUNT_ID
-            Value: !Ref AWS::AccountId
-          - Name: AWS_DEFAULT_REGION
-            Value: !Ref AWS::Region
+          - {Name: REPOSITORY_URI, Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BackendECRRepo}'}
+          - {Name: AWS_ACCOUNT_ID, Value: !Ref 'AWS::AccountId'}
+          - {Name: AWS_DEFAULT_REGION, Value: !Ref 'AWS::Region'}
       Source:
         Type: S3
         Location: !Sub '${SourceBucket}/backend-source.zip'
         BuildSpec: deployment-scripts/buildspecs/backend-buildspec.yml
       TimeoutInMinutes: 15
 
-  # Agent Container Build Pipeline
-  AgentECRRepo:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: !Sub '${AWS::StackName}-agent'
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      LifecyclePolicy:
-        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"untagged","countType":"imageCountMoreThan","countNumber":3},"action":{"type":"expire"}}]}'
-
   AgentBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: !Sub '${AWS::StackName}-agent-build'
       ServiceRole: !GetAtt BackendBuildRole.Arn
-      Artifacts:
-        Type: NO_ARTIFACTS
+      Artifacts: {Type: NO_ARTIFACTS}
       Environment:
         Type: ARM_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/amazonlinux2-aarch64-standard:3.0
         PrivilegedMode: true
         EnvironmentVariables:
-          - Name: ECR_REPO
-            Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AgentECRRepo}'
-          - Name: AWS_DEFAULT_REGION
-            Value: !Ref AWS::Region
+          - {Name: ECR_REPO, Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AgentECRRepo}'}
+          - {Name: AWS_DEFAULT_REGION, Value: !Ref 'AWS::Region'}
       Source:
         Type: S3
         Location: !Sub '${SourceBucket}/agent-source.zip'
         BuildSpec: deployment-scripts/buildspecs/agent-buildspec.yml
       TimeoutInMinutes: 15
 
-  # AgentCore Runtime (conditional)
+  FrontendBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: codebuild.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: FrontendBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject, s3:DeleteObject, s3:ListBucket]
+                Resource: [!GetAtt StaticBucket.Arn, !Sub '${StaticBucket.Arn}/*']
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub 'arn:aws:s3:::${SourceBucket}/*'
+              - Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+              - {Effect: Allow, Action: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'], Resource: '*'}
+
+  FrontendBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AWS::StackName}-frontend-build'
+      ServiceRole: !GetAtt FrontendBuildRole.Arn
+      Artifacts: {Type: NO_ARTIFACTS}
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - {Name: STATIC_BUCKET, Value: !Ref StaticBucket}
+          - {Name: DISTRIBUTION_ID, Value: !Ref Distribution}
+      Source:
+        Type: S3
+        Location: !Sub '${SourceBucket}/frontend-source.zip'
+        BuildSpec: deployment-scripts/buildspecs/frontend-buildspec.yml
+      TimeoutInMinutes: 10
+
+  # ─── AgentCore Runtime (conditional) ───
   AgentCoreRuntimeRole:
     Type: AWS::IAM::Role
     Condition: ShouldCreateRuntime
@@ -561,8 +492,7 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: bedrock-agentcore.amazonaws.com
+            Principal: {Service: bedrock-agentcore.amazonaws.com}
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/ReadOnlyAccess
@@ -571,25 +501,17 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              - {Effect: Allow, Action: ['ecr:GetAuthorizationToken'], Resource: '*'}
               - Effect: Allow
-                Action:
-                  - ecr:GetAuthorizationToken
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - ecr:BatchGetImage
-                  - ecr:GetDownloadUrlForLayer
-                  - ecr:BatchCheckLayerAvailability
+                Action: [ecr:BatchGetImage, ecr:GetDownloadUrlForLayer, ecr:BatchCheckLayerAvailability]
                 Resource: !GetAtt AgentECRRepo.Arn
+              - {Effect: Allow, Action: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'], Resource: '*'}
               - Effect: Allow
-                Action:
-                  - bedrock:InvokeModel
-                  - bedrock:InvokeModelWithResponseStream
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
+                Action: ssm:GetParameter
                 Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/*'
+              - Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !GetAtt McpAssumeRole.Arn
 
   AgentCoreRuntime:
     Type: AWS::BedrockAgentCore::Runtime
@@ -597,7 +519,7 @@ Resources:
     DependsOn: AgentBuildProject
     Properties:
       AgentRuntimeName: !Join ['_', !Split ['-', !Sub '${AWS::StackName}_agent']]
-      Description: Kiro CLI agent runtime for Cloud Operations Assistant
+      Description: Kiro CLI agent runtime with MCP cross-account access
       RoleArn: !GetAtt AgentCoreRuntimeRole.Arn
       AgentRuntimeArtifact:
         ContainerConfiguration:
@@ -607,98 +529,42 @@ Resources:
       ProtocolConfiguration: HTTP
       EnvironmentVariables:
         KIRO_API_KEY_SSM_PARAM: !Ref KiroApiKey
+        CROSS_ACCOUNT_EXTERNAL_ID: !Ref CrossAccountExternalId
+        MCP_ROLE_ARN: !GetAtt McpAssumeRole.Arn
 
-  # Frontend Build Pipeline
-  FrontendBuildRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codebuild.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: FrontendBuildPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:DeleteObject
-                  - s3:ListBucket
-                Resource:
-                  - !GetAtt StaticBucket.Arn
-                  - !Sub '${StaticBucket.Arn}/*'
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                Resource: !Sub 'arn:aws:s3:::${SourceBucket}/*'
-              - Effect: Allow
-                Action:
-                  - cloudfront:CreateInvalidation
-                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: '*'
-
-  FrontendBuildProject:
-    Type: AWS::CodeBuild::Project
-    Properties:
-      Name: !Sub '${AWS::StackName}-frontend-build'
-      ServiceRole: !GetAtt FrontendBuildRole.Arn
-      Artifacts:
-        Type: NO_ARTIFACTS
-      Environment:
-        Type: LINUX_CONTAINER
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
-        EnvironmentVariables:
-          - Name: STATIC_BUCKET
-            Value: !Ref StaticBucket
-          - Name: DISTRIBUTION_ID
-            Value: !Ref Distribution
-      Source:
-        Type: S3
-        Location: !Sub '${SourceBucket}/frontend-source.zip'
-        BuildSpec: deployment-scripts/buildspecs/frontend-buildspec.yml
-      TimeoutInMinutes: 10
-
-  # SSM Parameter for Kiro API Key
+  # ─── SSM ───
   KiroApiKey:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub '/${AWS::StackName}/kiro-api-key'
       Type: String
       Value: PLACEHOLDER
-      Description: Kiro API key — update value manually via console or CLI after stack creation
+      Description: Kiro API key — update after stack creation
 
-  # Cross-Account MCP Server IAM Role
+  # ─── MCP Cross-Account IAM Role ───
   McpAssumeRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub '${AWS::StackName}-McpAssumeRole'
+      Description: Dedicated IAM role for MCP server cross-account access
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service: ecs-tasks.amazonaws.com
+              Service: [ecs-tasks.amazonaws.com, bedrock-agentcore.amazonaws.com]
             Action: sts:AssumeRole
-          - !If
-            - ShouldCreateRuntime
-            - Effect: Allow
-              Principal:
-                AWS: !GetAtt AgentCoreRuntimeRole.Arn
-              Action: sts:AssumeRole
-            - !Ref AWS::NoValue
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike:
+                aws:PrincipalArn:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-*'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/sandbox-dev-*'
       Policies:
-        - PolicyName: AssumeTargetRoles
+        - PolicyName: AssumeTargetAccountRoles
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -707,23 +573,7 @@ Resources:
                 Resource: 'arn:aws:iam::*:role/OpenAB-ReadOnlyAccess'
                 Condition:
                   StringEquals:
-                    sts:ExternalId: 'openab-scan'
-
-  # DynamoDB — Cross-Account Onboarding State
-  CrossAccountStateTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub '${AWS::StackName}-cross-account-state'
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: account_id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: account_id
-          KeyType: HASH
-      TimeToLiveSpecification:
-        AttributeName: ttl
-        Enabled: true
+                    sts:ExternalId: !Ref CrossAccountExternalId
 
 Outputs:
   CloudFrontURL:
@@ -759,5 +609,11 @@ Outputs:
     Value: !Ref TaskTable
   McpAssumeRoleArn:
     Value: !GetAtt McpAssumeRole.Arn
+    Description: MCP server IAM role ARN — used in one-click target account template
+  McpAssumeRoleName:
+    Value: !Sub '${AWS::StackName}-McpAssumeRole'
   CrossAccountStateTable:
     Value: !Ref CrossAccountStateTable
+  CrossAccountCfnTemplateUrl:
+    Value: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/templates/cross-account-readonly-role.yaml'
+    Description: Upload the target account CFN template to this S3 path

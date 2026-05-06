@@ -100,22 +100,40 @@ def _invoke(payload: dict, session_id: str = None) -> dict:
     return {**data, "_session_id": session}
 
 
-async def invoke_agentcore_runtime(user_input: str) -> dict:
+async def invoke_agentcore_runtime(user_input: str, assume_role_arn: str = "") -> dict:
     """Invoke AgentCore runtime with async polling for long-running tasks."""
     if not RUNTIME_ARN:
         return {"response": "AgentCore runtime ARN not configured", "error": True}
 
     session_id = str(uuid.uuid4())
 
+    payload = {"input": user_input}
+    if assume_role_arn:
+        payload["assume_role_arn"] = assume_role_arn
+
     # First call: submit the task
     result = await asyncio.get_event_loop().run_in_executor(
-        None, lambda: _invoke({"input": user_input}, session_id))
+        None, lambda: _invoke(payload, session_id))
 
     status = result.get("status", "")
     task_id = result.get("task_id", "")
     sid = result.get("_session_id", session_id)
 
     # If immediate response (no async task), return directly
+    # Retry if runtime is cold-starting
+    if status == "initializing":
+        for _ in range(12):  # retry up to 120s for cold start
+            await asyncio.sleep(10)
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: _invoke(payload, session_id))
+            status = result.get("status", "")
+            task_id = result.get("task_id", "")
+            sid = result.get("_session_id", session_id)
+            if status != "initializing":
+                break
+        if status == "initializing":
+            return {"response": "Agent runtime is still starting up. Please try again in a minute."}
+
     if status != "accepted":
         return {"response": _mask_output(result.get("response", str(result)))}
 

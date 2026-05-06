@@ -8,10 +8,13 @@
       "mcp_server": {
         "command": "python3",
         "args": ["-m", "awslabs.aws_api_mcp_server"],
-        "env": {}
+        "env": {
+          "AWS_ASSUME_ROLE_ARN": "${AWS_ASSUME_ROLE_ARN}",
+          "AWS_ASSUME_ROLE_EXTERNAL_ID": "${CROSS_ACCOUNT_EXTERNAL_ID}"
+        }
       },
       "required_env": [],
-      "description": "AWS API access — uses container IAM role"
+      "description": "AWS API access — uses container IAM role, supports cross-account via AssumeRole"
     }
   ]
 }
