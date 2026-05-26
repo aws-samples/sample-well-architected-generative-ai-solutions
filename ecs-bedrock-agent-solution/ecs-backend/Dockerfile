@@ -1,12 +1,15 @@
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023 AS builder
 WORKDIR /build
-RUN dnf install -y python3.12 python3.12-pip shadow-utils && dnf clean all
+RUN dnf upgrade -y --security && \
+    dnf install -y python3.13 python3.13-pip shadow-utils && dnf clean all
 COPY requirements.txt .
-RUN python3.12 -m pip install --user --no-cache-dir -r requirements.txt
+RUN python3.13 -m pip install --no-cache-dir --upgrade pip && \
+    python3.13 -m pip install --user --no-cache-dir -r requirements.txt
 
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023
-RUN dnf install -y python3.12 shadow-utils && dnf clean all && \
-    alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
+RUN dnf upgrade -y --security && \
+    dnf install -y python3.13 shadow-utils && dnf clean all && \
+    alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
 RUN groupadd -r app && useradd -r -g app app
 WORKDIR /app
 COPY --from=builder /root/.local /home/app/.local

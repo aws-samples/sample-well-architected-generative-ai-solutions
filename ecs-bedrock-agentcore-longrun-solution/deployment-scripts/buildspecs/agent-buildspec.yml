@@ -9,10 +9,12 @@ phases:
     commands:
       - echo Building agent container...
       - cd kiro-agentcore-runtime
-      - docker build -t $ECR_REPO:latest .
+      - docker build --pull --no-cache -t $ECR_REPO:latest .
       - docker tag $ECR_REPO:latest $ECR_REPO:$IMAGE_TAG
   post_build:
     commands:
       - echo Pushing to ECR...
       - docker push $ECR_REPO:latest
       - docker push $ECR_REPO:$IMAGE_TAG
+      - echo "Starting ECR image scan..."
+      - aws ecr start-image-scan --repository-name $(echo $ECR_REPO | awk -F/ '{print $NF}') --image-id imageTag=$IMAGE_TAG --region $AWS_DEFAULT_REGION || true
