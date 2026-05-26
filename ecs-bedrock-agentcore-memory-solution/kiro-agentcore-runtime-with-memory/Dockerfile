@@ -2,10 +2,10 @@
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023
 
 RUN dnf upgrade -y --security && \
-    dnf install -y python3.13 python3.13-pip curl bash unzip coreutils tar gzip shadow-utils && dnf clean all && \
+    dnf install -y python3.13 python3.13-pip bash unzip tar gzip shadow-utils && dnf clean all && \
     alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
 
-# Install AWS CLI
+# Install AWS CLI (curl-minimal is pre-installed in AL2023)
 RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscli.zip && \
     unzip -q /tmp/awscli.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/aws /tmp/awscli.zip
 
@@ -24,7 +24,7 @@ RUN curl -fsSL https://cli.kiro.dev/install | bash
 RUN kiro-cli --version && aws --version
 
 # Install bedrock-agentcore SDK and aws-api-mcp-server
-RUN pip install --no-cache-dir bedrock-agentcore "awslabs.aws-api-mcp-server"
+RUN python3 -m pip install --no-cache-dir bedrock-agentcore "awslabs.aws-api-mcp-server"
 
 # Copy the HTTP/ACP wrapper
 COPY wrapper.py /app/wrapper.py

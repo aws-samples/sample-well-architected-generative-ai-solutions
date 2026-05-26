@@ -332,6 +332,32 @@ Resources:
       BucketName: !Sub '${AWS::StackName}-static-${AWS::AccountId}'
 
   # ─── CloudFront ───
+  StaticBucketOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-static-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  StaticBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StaticBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${StaticBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -341,6 +367,7 @@ Resources:
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt StaticBucket.RegionalDomainName
+            OriginAccessControlId: !Ref StaticBucketOAC
             S3OriginConfig: {OriginAccessIdentity: ''}
           - Id: ALBOrigin
             DomainName: !GetAtt ALB.DNSName

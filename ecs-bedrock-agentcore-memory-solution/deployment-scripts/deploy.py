@@ -28,7 +28,7 @@ def upload_source(source_bucket, region):
 
     for name, paths in [
         ("backend-source.zip", ["ecs-backend", "deployment-scripts/buildspecs"]),
-        ("agent-source.zip", ["kiro-agentcore-runtime", "deployment-scripts/buildspecs"]),
+        ("agent-source.zip", ["kiro-agentcore-runtime-with-memory", "deployment-scripts/buildspecs"]),
     ]:
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
             with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -49,7 +49,7 @@ def upload_source(source_bucket, region):
 def deploy_stack(stack_name, region, args, backend_image="public.ecr.aws/nginx/nginx:alpine",
                  create_runtime=False, runtime_arn=""):
     cfn = boto3.client("cloudformation", region_name=region)
-    template_path = os.path.join(os.path.dirname(__file__), "agentcore-longrun-orchestrator-0.1.0.yaml")
+    template_path = os.path.join(os.path.dirname(__file__), "agentcore-longrun-orchestrator-0.2.0.yaml")
     with open(template_path) as f:
         template_body = f.read()
 
@@ -72,7 +72,7 @@ def deploy_stack(stack_name, region, args, backend_image="public.ecr.aws/nginx/n
     if is_update:
         try:
             cfn.update_stack(StackName=stack_name, TemplateBody=template_body, Parameters=params,
-                             Capabilities=["CAPABILITY_IAM"])
+                             Capabilities=["CAPABILITY_NAMED_IAM"])
             print(f"Updating stack: {stack_name}")
         except cfn.exceptions.ClientError as e:
             if "No updates" in str(e):
@@ -83,7 +83,7 @@ def deploy_stack(stack_name, region, args, backend_image="public.ecr.aws/nginx/n
         waiter = cfn.get_waiter("stack_update_complete")
     else:
         cfn.create_stack(StackName=stack_name, TemplateBody=template_body, Parameters=params,
-                         Capabilities=["CAPABILITY_IAM"])
+                         Capabilities=["CAPABILITY_NAMED_IAM"])
         print(f"Creating stack: {stack_name}")
         waiter = cfn.get_waiter("stack_create_complete")
 
@@ -124,20 +124,56 @@ def run_codebuild(project_name, region):
 def deploy_frontend(outputs, region):
     s3 = boto3.client("s3", region_name=region)
     bucket = outputs["StaticBucket"]
-    dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend-react", "dist")
-    if not os.path.isdir(dist_dir):
-        print(f"Warning: {dist_dir} not found, skipping frontend deploy")
-        return
+    base = os.path.join(os.path.dirname(__file__), "..", "frontend-react")
 
-    content_types = {".html": "text/html", ".js": "application/javascript", ".css": "text/css",
-                     ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png"}
-    for root, _, files in os.walk(dist_dir):
-        for f in files:
-            path = os.path.join(root, f)
-            key = os.path.relpath(path, dist_dir)
-            ext = os.path.splitext(f)[1]
-            ct = content_types.get(ext, "application/octet-stream")
-            s3.upload_file(path, bucket, key, ExtraArgs={"ContentType": ct})
+    # Generate config.js with stack outputs
+    cf_url = outputs.get("CloudFrontURL", "")
+    config_js = f"""window.APP_CONFIG = {{
+  "cognito": {{
+    "userPoolId": "{outputs.get('UserPoolId', '')}",
+    "clientId": "{outputs.get('UserPoolClientId', '')}"
+  }},
+  "api": {{
+    "baseUrl": "{cf_url}",
+    "endpoints": {{
+      "chat": "{cf_url}/api/chat",
+      "health": "{cf_url}/api/health",
+      "websocket": "wss://{outputs.get('ALBDnsName', '')}/ws"
+    }}
+  }},
+  "app": {{
+    "name": "Cloud Operations Assistant",
+    "version": "0.2.0"
+  }}
+}};
+"""
+    s3.put_object(Bucket=bucket, Key="config.js", Body=config_js, ContentType="application/javascript")
+
+    # Deploy standalone HTML files
+    html_files = {
+        "cloud-operation-assistant-v3.html": "index.html",  # main page
+        "orchestrator-v2.html": "orchestrator-v2.html",
+        "task-log.html": "task-log.html",
+        "developer-assistant-dev-v1.html": "developer-assistant-dev-v1.html",
+    }
+    for src, dest in html_files.items():
+        path = os.path.join(base, src)
+        if os.path.isfile(path):
+            s3.upload_file(path, bucket, dest, ExtraArgs={"ContentType": "text/html"})
+
+    # Also deploy from dist/ if it exists (built React app)
+    dist_dir = os.path.join(base, "dist")
+    if os.path.isdir(dist_dir):
+        content_types = {".html": "text/html", ".js": "application/javascript", ".css": "text/css",
+                         ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png"}
+        for root, _, files in os.walk(dist_dir):
+            for f in files:
+                fp = os.path.join(root, f)
+                key = os.path.relpath(fp, dist_dir)
+                ext = os.path.splitext(f)[1]
+                ct = content_types.get(ext, "application/octet-stream")
+                s3.upload_file(fp, bucket, key, ExtraArgs={"ContentType": ct})
+
     print(f"Frontend deployed to s3://{bucket}")
 
 
