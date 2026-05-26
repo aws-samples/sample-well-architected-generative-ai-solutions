@@ -9,10 +9,12 @@ phases:
     commands:
       - echo Building Docker image...
       - cd ecs-backend
-      - docker build -t $REPOSITORY_URI:latest -f deployment/Dockerfile .
+      - docker build --pull --no-cache -t $REPOSITORY_URI:latest -f deployment/Dockerfile .
       - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
   post_build:
     commands:
       - echo Pushing Docker image...
       - docker push $REPOSITORY_URI:latest
       - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo "Starting ECR image scan..."
+      - aws ecr start-image-scan --repository-name $(echo $REPOSITORY_URI | awk -F/ '{print $NF}') --image-id imageTag=$IMAGE_TAG --region $AWS_DEFAULT_REGION || true

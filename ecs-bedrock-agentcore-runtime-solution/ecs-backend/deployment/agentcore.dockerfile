@@ -19,17 +19,16 @@
 # Multi-stage build for AgentCore backend with Strands agent services and graceful degradation
 
 # Build stage - Install dependencies
-FROM python:3.11-slim as builder
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023 as builder
 
 # Set build arguments
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies needed for building
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+RUN dnf upgrade -y --security && \
+    dnf install -y python3.13 python3.13-pip python3.13-devel \
+    gcc gcc-c++ make curl git && dnf clean all && \
+    alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
 
 # Create build directory
 WORKDIR /build
@@ -38,20 +37,16 @@ WORKDIR /build
 COPY requirements.txt .
 
 # Install Python dependencies to user directory
-RUN pip install --user --no-cache-dir --upgrade pip && \
-    pip install --user --no-cache-dir -r requirements.txt
+RUN python3.13 -m pip install --user --no-cache-dir --upgrade pip && \
+    python3.13 -m pip install --user --no-cache-dir -r requirements.txt
 
 # Production stage - AgentCore runtime image
-FROM python:3.11-slim as production
-
-# Set production arguments
-ARG DEBIAN_FRONTEND=noninteractive
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023 as production
 
 # Install only runtime dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+RUN dnf upgrade -y --security && \
+    dnf install -y python3.13 shadow-utils && dnf clean all && \
+    alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
 
 # Create non-root user for security
 RUN groupadd -r agentcore && useradd -r -g agentcore agentcore

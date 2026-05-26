@@ -1,7 +1,9 @@
 # Kiro CLI + MCP as AgentCore Runtime (ARM64)
-FROM public.ecr.aws/docker/library/python:3.12-slim
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023
 
-RUN apt-get update && apt-get upgrade -y && apt-get install -y curl bash unzip coreutils && rm -rf /var/lib/apt/lists/*
+RUN dnf upgrade -y --security && \
+    dnf install -y python3.13 python3.13-pip curl bash unzip coreutils tar gzip shadow-utils && dnf clean all && \
+    alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
 
 # Install AWS CLI
 RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscli.zip && \

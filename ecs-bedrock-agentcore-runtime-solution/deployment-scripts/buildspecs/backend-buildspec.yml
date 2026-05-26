@@ -11,7 +11,7 @@ phases:
     commands:
       - echo Build started on `date`
       - echo "Building Docker image from ecs-backend..."
-      - docker build --platform linux/amd64 -t $ECR_REPOSITORY_URI:latest -t $ECR_REPOSITORY_URI:$IMAGE_TAG -f ecs-backend/deployment/agentcore.dockerfile ecs-backend/
+      - docker build --pull --no-cache --platform linux/amd64 -t $ECR_REPOSITORY_URI:latest -t $ECR_REPOSITORY_URI:$IMAGE_TAG -f ecs-backend/deployment/agentcore.dockerfile ecs-backend/
       - echo "Testing container startup..."
       - docker run --rm $ECR_REPOSITORY_URI:latest python -c "import fastapi; print('FastAPI import successful')"
   post_build:
@@ -20,6 +20,8 @@ phases:
       - echo "Pushing images to ECR..."
       - docker push $ECR_REPOSITORY_URI:latest
       - docker push $ECR_REPOSITORY_URI:$IMAGE_TAG
+      - echo "Starting ECR image scan..."
+      - aws ecr start-image-scan --repository-name $(echo $ECR_REPOSITORY_URI | awk -F/ '{print $NF}') --image-id imageTag=$IMAGE_TAG --region $AWS_DEFAULT_REGION || true
       - echo "Creating imagedefinitions.json..."
       - printf '[{"name":"backend","imageUri":"%s"}]' $ECR_REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
       - cat imagedefinitions.json

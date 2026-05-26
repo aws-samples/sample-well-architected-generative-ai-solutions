@@ -11,9 +11,11 @@ phases:
   build:
     commands:
       - echo Building ARM64 Docker image with kiro-cli installer
-      - docker build -t $ECR_REPO:latest .
+      - docker build --pull --no-cache -t $ECR_REPO:latest .
   post_build:
     commands:
       - echo Pushing to ECR
       - docker push $ECR_REPO:latest
+      - echo "Starting ECR image scan..."
+      - aws ecr start-image-scan --repository-name kiro-agentcore --image-id imageTag=latest --region us-west-2 || true
       - echo "Done"
