@@ -8,7 +8,7 @@ phases:
   build:
     commands:
       - echo Building agent container...
-      - cd kiro-agentcore-runtime
+      - cd kiro-agentcore-runtime-with-memory
       - docker build --pull --no-cache -t $ECR_REPO:latest .
       - docker tag $ECR_REPO:latest $ECR_REPO:$IMAGE_TAG
   post_build:

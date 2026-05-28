@@ -28,7 +28,8 @@ def upload_source(source_bucket, region):
 
     for name, paths in [
         ("backend-source.zip", ["ecs-backend", "deployment-scripts/buildspecs"]),
-        ("agent-source.zip", ["kiro-agentcore-runtime", "deployment-scripts/buildspecs"]),
+        ("agent-source.zip", ["kiro-agentcore-runtime-with-memory", "deployment-scripts/buildspecs"]),
+        ("frontend-source.zip", ["frontend-react", "deployment-scripts/buildspecs"]),
     ]:
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
             with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -49,7 +50,7 @@ def upload_source(source_bucket, region):
 def deploy_stack(stack_name, region, args, backend_image="public.ecr.aws/nginx/nginx:alpine",
                  create_runtime=False, runtime_arn=""):
     cfn = boto3.client("cloudformation", region_name=region)
-    template_path = os.path.join(os.path.dirname(__file__), "agentcore-longrun-orchestrator-0.1.0.yaml")
+    template_path = os.path.join(os.path.dirname(__file__), "agentcore-longrun-orchestrator-0.2.0.yaml")
     with open(template_path) as f:
         template_body = f.read()
 
@@ -72,7 +73,7 @@ def deploy_stack(stack_name, region, args, backend_image="public.ecr.aws/nginx/n
     if is_update:
         try:
             cfn.update_stack(StackName=stack_name, TemplateBody=template_body, Parameters=params,
-                             Capabilities=["CAPABILITY_IAM"])
+                             Capabilities=["CAPABILITY_NAMED_IAM"])
             print(f"Updating stack: {stack_name}")
         except cfn.exceptions.ClientError as e:
             if "No updates" in str(e):
@@ -83,7 +84,7 @@ def deploy_stack(stack_name, region, args, backend_image="public.ecr.aws/nginx/n
         waiter = cfn.get_waiter("stack_update_complete")
     else:
         cfn.create_stack(StackName=stack_name, TemplateBody=template_body, Parameters=params,
-                         Capabilities=["CAPABILITY_IAM"])
+                         Capabilities=["CAPABILITY_NAMED_IAM"])
         print(f"Creating stack: {stack_name}")
         waiter = cfn.get_waiter("stack_create_complete")
 
@@ -122,23 +123,16 @@ def run_codebuild(project_name, region):
 
 
 def deploy_frontend(outputs, region):
-    s3 = boto3.client("s3", region_name=region)
-    bucket = outputs["StaticBucket"]
-    dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend-react", "dist")
-    if not os.path.isdir(dist_dir):
-        print(f"Warning: {dist_dir} not found, skipping frontend deploy")
-        return
-
-    content_types = {".html": "text/html", ".js": "application/javascript", ".css": "text/css",
-                     ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png"}
-    for root, _, files in os.walk(dist_dir):
-        for f in files:
-            path = os.path.join(root, f)
-            key = os.path.relpath(path, dist_dir)
-            ext = os.path.splitext(f)[1]
-            ct = content_types.get(ext, "application/octet-stream")
-            s3.upload_file(path, bucket, key, ExtraArgs={"ContentType": ct})
-    print(f"Frontend deployed to s3://{bucket}")
+    """Trigger the frontend CodeBuild project."""
+    project = outputs.get("FrontendBuildProject")
+    if not project:
+        # Fallback: project name follows stack naming convention
+        project = f"{outputs.get('ECSCluster', '').replace('-cluster', '')}-frontend-build"
+    print(f"  Triggering frontend build: {project}")
+    if not run_codebuild(project, region):
+        print("WARNING: Frontend build failed — deploy manually if needed")
+    else:
+        print("  Frontend deployed via CodeBuild")
 
 
 def main():
@@ -156,7 +150,6 @@ def main():
             print(f"  {k}: {v}")
         print("\n  Uploading source code...")
         upload_source(source_bucket, region)
-        deploy_frontend(outputs, region)
 
     if args.phase in ("build", "all"):
         outputs = get_stack_outputs(stack_name, region)
@@ -170,8 +163,11 @@ def main():
             print("ERROR: Agent build failed!")
             sys.exit(1)
 
+        print("\n=== Phase 4: Deploy frontend ===")
+        deploy_frontend(outputs, region)
+
     if args.phase in ("update", "all"):
-        print("\n=== Phase 4: Update ECS with real backend image ===")
+        print("\n=== Phase 5: Update ECS with real backend image ===")
         outputs = get_stack_outputs(stack_name, region)
         backend_image = f"{outputs['BackendECRRepo']}:latest"
         outputs = deploy_stack(stack_name, region, args,

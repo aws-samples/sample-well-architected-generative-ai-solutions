@@ -101,54 +101,30 @@ def _invoke(payload: dict, session_id: str = None) -> dict:
 
 
 async def invoke_agentcore_runtime(user_input: str, assume_role_arn: str = "") -> dict:
-    """Invoke AgentCore runtime with async polling for long-running tasks."""
+    """Invoke AgentCore runtime synchronously."""
     if not RUNTIME_ARN:
         return {"response": "AgentCore runtime ARN not configured", "error": True}
 
     session_id = str(uuid.uuid4())
-
     payload = {"input": user_input}
     if assume_role_arn:
         payload["assume_role_arn"] = assume_role_arn
 
-    # First call: submit the task
-    result = await asyncio.get_event_loop().run_in_executor(
-        None, lambda: _invoke(payload, session_id))
+    # Invoke — runtime processes synchronously and returns result
+    for attempt in range(15):  # retry up to 150s for cold start
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: _invoke(payload, session_id))
+        status = result.get("status", "")
 
-    status = result.get("status", "")
-    task_id = result.get("task_id", "")
-    sid = result.get("_session_id", session_id)
-
-    # If immediate response (no async task), return directly
-    # Retry if runtime is cold-starting
-    if status == "initializing":
-        for _ in range(12):  # retry up to 120s for cold start
+        if status == "complete":
+            return {"response": _mask_output(result.get("response", "(empty)"))}
+        elif status == "error":
+            return {"response": _mask_output(result.get("response", "Agent error"))}
+        elif status == "initializing":
             await asyncio.sleep(10)
-            result = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: _invoke(payload, session_id))
-            status = result.get("status", "")
-            task_id = result.get("task_id", "")
-            sid = result.get("_session_id", session_id)
-            if status != "initializing":
-                break
-        if status == "initializing":
-            return {"response": "Agent runtime is still starting up. Please try again in a minute."}
+            continue
+        else:
+            # Unknown status — return whatever we got
+            return {"response": _mask_output(result.get("response", str(result)))}
 
-    if status != "accepted":
-        return {"response": _mask_output(result.get("response", str(result)))}
-
-    # Poll for completion
-    for _ in range(60):  # up to 5 minutes (60 * 5s)
-        await asyncio.sleep(5)
-        try:
-            poll = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: _invoke({"check_task": task_id}, sid))
-            poll_status = poll.get("status", "")
-            if poll_status == "complete":
-                return {"response": _mask_output(poll.get("response", "(empty)"))}
-            if poll_status not in ("processing", "accepted"):
-                return {"response": _mask_output(poll.get("response", str(poll)))}
-        except Exception as e:
-            logger.warning(f"Poll error: {e}")
-
-    return {"response": "Task timed out waiting for agent response"}
+    return {"response": "Agent runtime is still starting up. Please try again in a minute."}
