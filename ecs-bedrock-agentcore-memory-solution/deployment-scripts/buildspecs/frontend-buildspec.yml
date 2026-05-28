@@ -1,17 +1,37 @@
 version: 0.2
 phases:
-  install:
-    runtime-versions:
-      nodejs: 20
-    commands:
-      - cd frontend-react
-      - npm ci
   build:
     commands:
-      - npm run build
+      - echo "Generating config.js..."
+      - |
+        cat > /tmp/config.js << EOF
+        window.APP_CONFIG = {
+          "cognito": {
+            "userPoolId": "$USER_POOL_ID",
+            "clientId": "$USER_POOL_CLIENT_ID"
+          },
+          "api": {
+            "baseUrl": "https://$CLOUDFRONT_DOMAIN",
+            "endpoints": {
+              "chat": "https://$CLOUDFRONT_DOMAIN/api/chat",
+              "health": "https://$CLOUDFRONT_DOMAIN/api/health",
+              "websocket": "wss://$CLOUDFRONT_DOMAIN/ws"
+            }
+          },
+          "app": {
+            "name": "Cloud Operations Assistant",
+            "version": "0.2.0"
+          }
+        };
+        EOF
   post_build:
     commands:
-      - echo Deploying to S3...
-      - aws s3 sync dist/ s3://$STATIC_BUCKET/ --delete --exclude "config.js"
-      - echo Invalidating CloudFront cache...
+      - echo "Deploying frontend to S3..."
+      - cd frontend-react
+      - aws s3 cp cloud-operation-assistant-v3.html s3://$STATIC_BUCKET/index.html --content-type "text/html"
+      - aws s3 cp orchestrator-v2.html s3://$STATIC_BUCKET/orchestrator-v2.html --content-type "text/html"
+      - aws s3 cp task-log.html s3://$STATIC_BUCKET/task-log.html --content-type "text/html"
+      - aws s3 cp developer-assistant-dev-v1.html s3://$STATIC_BUCKET/developer-assistant-dev-v1.html --content-type "text/html"
+      - aws s3 cp /tmp/config.js s3://$STATIC_BUCKET/config.js --content-type "application/javascript"
+      - echo "Invalidating CloudFront cache..."
       - aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"

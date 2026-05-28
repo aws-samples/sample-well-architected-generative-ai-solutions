@@ -504,6 +504,9 @@ Resources:
         EnvironmentVariables:
           - {Name: STATIC_BUCKET, Value: !Ref StaticBucket}
           - {Name: DISTRIBUTION_ID, Value: !Ref Distribution}
+          - {Name: USER_POOL_ID, Value: !Ref UserPool}
+          - {Name: USER_POOL_CLIENT_ID, Value: !Ref UserPoolClient}
+          - {Name: CLOUDFRONT_DOMAIN, Value: !GetAtt Distribution.DomainName}
       Source:
         Type: S3
         Location: !Sub '${SourceBucket}/frontend-source.zip'
@@ -624,6 +627,8 @@ Outputs:
     Value: !Ref BackendBuildProject
   AgentBuildProject:
     Value: !Ref AgentBuildProject
+  FrontendBuildProject:
+    Value: !Ref FrontendBuildProject
   ECSCluster:
     Value: !Ref ECSCluster
   ECSService:

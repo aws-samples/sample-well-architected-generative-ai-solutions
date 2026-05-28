@@ -29,6 +29,7 @@ def upload_source(source_bucket, region):
     for name, paths in [
         ("backend-source.zip", ["ecs-backend", "deployment-scripts/buildspecs"]),
         ("agent-source.zip", ["kiro-agentcore-runtime-with-memory", "deployment-scripts/buildspecs"]),
+        ("frontend-source.zip", ["frontend-react", "deployment-scripts/buildspecs"]),
     ]:
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
             with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -122,59 +123,16 @@ def run_codebuild(project_name, region):
 
 
 def deploy_frontend(outputs, region):
-    s3 = boto3.client("s3", region_name=region)
-    bucket = outputs["StaticBucket"]
-    base = os.path.join(os.path.dirname(__file__), "..", "frontend-react")
-
-    # Generate config.js with stack outputs
-    cf_url = outputs.get("CloudFrontURL", "")
-    config_js = f"""window.APP_CONFIG = {{
-  "cognito": {{
-    "userPoolId": "{outputs.get('UserPoolId', '')}",
-    "clientId": "{outputs.get('UserPoolClientId', '')}"
-  }},
-  "api": {{
-    "baseUrl": "{cf_url}",
-    "endpoints": {{
-      "chat": "{cf_url}/api/chat",
-      "health": "{cf_url}/api/health",
-      "websocket": "wss://{outputs.get('ALBDnsName', '')}/ws"
-    }}
-  }},
-  "app": {{
-    "name": "Cloud Operations Assistant",
-    "version": "0.2.0"
-  }}
-}};
-"""
-    s3.put_object(Bucket=bucket, Key="config.js", Body=config_js, ContentType="application/javascript")
-
-    # Deploy standalone HTML files
-    html_files = {
-        "cloud-operation-assistant-v3.html": "index.html",  # main page
-        "orchestrator-v2.html": "orchestrator-v2.html",
-        "task-log.html": "task-log.html",
-        "developer-assistant-dev-v1.html": "developer-assistant-dev-v1.html",
-    }
-    for src, dest in html_files.items():
-        path = os.path.join(base, src)
-        if os.path.isfile(path):
-            s3.upload_file(path, bucket, dest, ExtraArgs={"ContentType": "text/html"})
-
-    # Also deploy from dist/ if it exists (built React app)
-    dist_dir = os.path.join(base, "dist")
-    if os.path.isdir(dist_dir):
-        content_types = {".html": "text/html", ".js": "application/javascript", ".css": "text/css",
-                         ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png"}
-        for root, _, files in os.walk(dist_dir):
-            for f in files:
-                fp = os.path.join(root, f)
-                key = os.path.relpath(fp, dist_dir)
-                ext = os.path.splitext(f)[1]
-                ct = content_types.get(ext, "application/octet-stream")
-                s3.upload_file(fp, bucket, key, ExtraArgs={"ContentType": ct})
-
-    print(f"Frontend deployed to s3://{bucket}")
+    """Trigger the frontend CodeBuild project."""
+    project = outputs.get("FrontendBuildProject")
+    if not project:
+        # Fallback: project name follows stack naming convention
+        project = f"{outputs.get('ECSCluster', '').replace('-cluster', '')}-frontend-build"
+    print(f"  Triggering frontend build: {project}")
+    if not run_codebuild(project, region):
+        print("WARNING: Frontend build failed — deploy manually if needed")
+    else:
+        print("  Frontend deployed via CodeBuild")
 
 
 def main():
@@ -192,7 +150,6 @@ def main():
             print(f"  {k}: {v}")
         print("\n  Uploading source code...")
         upload_source(source_bucket, region)
-        deploy_frontend(outputs, region)
 
     if args.phase in ("build", "all"):
         outputs = get_stack_outputs(stack_name, region)
@@ -206,8 +163,11 @@ def main():
             print("ERROR: Agent build failed!")
             sys.exit(1)
 
+        print("\n=== Phase 4: Deploy frontend ===")
+        deploy_frontend(outputs, region)
+
     if args.phase in ("update", "all"):
-        print("\n=== Phase 4: Update ECS with real backend image ===")
+        print("\n=== Phase 5: Update ECS with real backend image ===")
         outputs = get_stack_outputs(stack_name, region)
         backend_image = f"{outputs['BackendECRRepo']}:latest"
         outputs = deploy_stack(stack_name, region, args,
