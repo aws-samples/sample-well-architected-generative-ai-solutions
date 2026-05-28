@@ -244,6 +244,17 @@ def create_orchestrator_app() -> FastAPI:
     return app
 
 
+async def _safe_send(ws: WebSocket, data: dict):
+    """Send JSON to WebSocket, gracefully handling client disconnection."""
+    try:
+        await ws.send_json(data)
+    except RuntimeError as e:
+        if "websocket.close" in str(e) or "already completed" in str(e):
+            logger.debug(f"Client disconnected, skipping send: {data.get('type', '')}")
+        else:
+            raise
+
+
 async def _run_task(task_id: str, user_input: str, ws: WebSocket, session: dict, user: str = "default", assume_role_arn: str = ""):
     """Execute AgentCore runtime invocation and push result."""
     task = next(t for t in session["tasks"] if t["id"] == task_id)
@@ -256,7 +267,7 @@ async def _run_task(task_id: str, user_input: str, ws: WebSocket, session: dict,
         task["completed"] = datetime.utcnow().isoformat()
         save_task(user, task)
         _save_session(session)
-        await ws.send_json({
+        await _safe_send(ws, {
             "type": "task_complete",
             "task_id": task_id,
             "brief": brief,
@@ -268,4 +279,4 @@ async def _run_task(task_id: str, user_input: str, ws: WebSocket, session: dict,
         task["completed"] = datetime.utcnow().isoformat()
         save_task(user, task)
         _save_session(session)
-        await ws.send_json({"type": "task_error", "task_id": task_id, "message": f"Error: {str(e)[:200]}"})
+        await _safe_send(ws, {"type": "task_error", "task_id": task_id, "message": f"Error: {str(e)[:200]}"})
