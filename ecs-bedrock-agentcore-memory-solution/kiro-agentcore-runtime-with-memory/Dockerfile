@@ -12,6 +12,7 @@ RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /t
 # Install Kiro CLI via official installer
 ENV HOME=/root
 RUN curl -fsSL https://cli.kiro.dev/install | bash
+ENV PATH="/root/.local/bin:$PATH"
 
 # Verify installations
 RUN kiro-cli --version && aws --version
