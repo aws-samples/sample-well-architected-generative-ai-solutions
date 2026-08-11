@@ -27,7 +27,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # Install system dependencies needed for building
 RUN dnf upgrade -y --security && \
     dnf install -y python3.13 python3.13-pip python3.13-devel \
-    gcc gcc-c++ make curl git && dnf clean all && \
+    gcc gcc-c++ make git-core && dnf clean all && \
     alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
 
 # Create build directory
@@ -88,13 +88,13 @@ EXPOSE 8000
 
 # Add health check specific to AgentCore
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
 # Validate AgentCore configuration on startup
-RUN python -c "import os; assert os.getenv('BACKEND_MODE') == 'agentcore', 'Invalid backend mode for AgentCore'"
+RUN python3 -c "import os; assert os.getenv('BACKEND_MODE') == 'agentcore', 'Invalid backend mode for AgentCore'"
 
 # Run AgentCore application with graceful degradation
-CMD ["python", "-c", "from main import create_app; print('Starting COA Backend in agentcore mode'); app = create_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8000, workers=1)"]
+CMD ["python3", "-c", "from main import create_app; print('Starting COA Backend in agentcore mode'); app = create_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8000, workers=1)"]
 
 # Metadata labels
 LABEL maintainer="AWS Cloud Optimization Assistant Team" \
