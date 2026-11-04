@@ -7,7 +7,7 @@ strands-agents-tools>=0.2.0
 bedrock-agentcore>=0.1.0
 
 # Model Context Protocol (MCP)
-mcp>=1.0.0
+mcp>=1.0.0,<2
 
 # AWS SDK and Services
 boto3>=1.28.0
