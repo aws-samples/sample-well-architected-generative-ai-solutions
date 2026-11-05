@@ -1,7 +1,7 @@
 # AWS Well-Architected Security & Cost Agent Requirements
 # Core Strands Framework
 strands-agents>=1.0.0
-strands-agents-tools>=0.2.0
+strands-agents-tools>=0.2.0,<0.9
 
 # Bedrock AgentCore Runtime
 bedrock-agentcore>=0.1.0
